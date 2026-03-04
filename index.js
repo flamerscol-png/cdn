@@ -1,0 +1,1064 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const googleTrends = require('google-trends-api');
+const puppeteer = require('puppeteer');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Initialize Firebase Admin (Optional: Required for auto-credits)
+let admin, db;
+try {
+    const serviceAccount = require("./serviceAccountKey.json");
+    admin = require("firebase-admin");
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: "https://flamercoal-default-rtdb.firebaseio.com"
+    });
+    db = admin.database();
+    console.log("✅ Firebase Admin Initialized");
+} catch (e) {
+    console.warn("⚠️ Firebase Admin NOT initialized (serviceAccountKey.json missing). Auto-credits disabled.");
+}
+const allowedOrigins = [
+    'https://flamercoal.web.app',
+    'https://flamercoal.firebaseapp.com',
+    'http://localhost:5173',
+    'http://localhost:3000'
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+app.use(express.json());
+
+
+const cyrb53 = (str, seed = 0) => {
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0, ch; i < str.length; i++) {
+        ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+};
+
+function formatVolume(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return num.toString();
+}
+
+function extractDomain(urlStr) {
+    try { return new URL(urlStr).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { return null; }
+}
+
+// ==================== KEYWORDS ENDPOINT ====================
+app.get('/api/keywords', async (req, res) => {
+    const query = req.query.q;
+    if (!query) return res.status(400).json({ error: 'Missing query' });
+    console.log(`🔍 Searching for: ${query}`);
+
+    try {
+        let keywordList = [query];
+        try {
+            const suggUrl = `http://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(query)}`;
+            const suggResp = await fetch(suggUrl);
+            const suggData = await suggResp.json();
+            const suggestions = suggData[1] || [];
+            if (suggestions.length > 0) keywordList = suggestions.slice(0, 20);
+        } catch (suggErr) {
+            console.error('Suggest API Warning:', suggErr.message);
+        }
+
+        let trendPoints = [];
+        let avgInterest = 50;
+        try {
+            const trendResults = await googleTrends.interestOverTime({ keyword: query });
+            const parsedTrends = JSON.parse(trendResults);
+            if (parsedTrends.default && parsedTrends.default.timelineData) {
+                trendPoints = parsedTrends.default.timelineData.map(t => t.value[0]);
+                avgInterest = trendPoints.reduce((a, b) => a + b, 0) / (trendPoints.length || 1);
+            }
+        } catch (trendErr) {
+            console.error('Trends API Warning:', trendErr.message);
+            trendPoints = Array(12).fill(50);
+        }
+
+        const results = keywordList.map((term, index) => {
+            const seed = cyrb53(term);
+            const rand = (seed % 1000) / 1000;
+            let interestBaseline = Math.max(1000, Math.pow(avgInterest, 3) * 2);
+            let estimatedVol = Math.floor(interestBaseline * (1 / (index + 1)) * (10 / Math.max(term.length, 5)) * (0.8 + rand * 0.4));
+            if (term.toLowerCase() === query.toLowerCase()) estimatedVol = Math.max(estimatedVol, interestBaseline);
+            estimatedVol = Math.max(10, estimatedVol > 1000 ? Math.floor(estimatedVol / 100) * 100 : estimatedVol);
+            let kd = Math.min(95, Math.max(5, Math.floor(Math.log10(estimatedVol) * 18) - rand * 15));
+            const isCommercial = ['buy', 'price', 'cost', 'hire', 'service', 'best', 'software', 'course'].some(w => term.includes(w));
+            let cpc = (kd / 25) * (isCommercial ? 2.5 : 0.8) * (0.8 + rand);
+            let termTrend = index > 0 ? trendPoints.map(v => Math.max(0, Math.min(100, Math.floor(v * (0.8 + 0.4 * rand))))) : trendPoints;
+            return { term, volume: formatVolume(estimatedVol), rawVolume: estimatedVol, kd: Math.floor(kd), cpc: `$${cpc.toFixed(2)}`, trend: termTrend.slice(-7) };
+        });
+
+        const totalVolume = results.reduce((acc, r) => acc + r.rawVolume, 0);
+        const avgKD = Math.floor(results.reduce((acc, r) => acc + r.kd, 0) / results.length) || 0;
+        res.json({
+            overview: { volume: formatVolume(totalVolume), difficulty: `${avgKD}/100`, cpc: `$${(avgKD * 0.05).toFixed(2)}`, paidDifficulty: avgKD > 70 ? 'High' : avgKD > 40 ? 'Medium' : 'Low' },
+            keywords: results
+        });
+    } catch (error) {
+        console.error('Server Error:', error);
+        res.status(500).json({ error: 'Failed to fetch data', details: error.message });
+    }
+});
+
+// ==================== COMPETITORS ENDPOINT (Puppeteer) ====================
+app.get('/api/competitors', async (req, res) => {
+    const query = req.query.q;
+    if (!query) return res.status(400).json({ error: 'Missing query' });
+    console.log(`⚔️  Analyzing Competitors for: ${query}`);
+
+    let browser = null;
+    try {
+        const domainStats = {};
+        let rankCounter = 0;
+
+        const blacklist = ['google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com', 'microsoft.com', 'w3.org', 'schema.org'];
+
+        const addDomain = (d) => {
+            if (!d) return;
+            const clean = d.replace(/^www\./, '').toLowerCase();
+            if (clean && clean.includes('.') && !blacklist.some(b => clean === b || clean.endsWith('.' + b))) {
+                if (!domainStats[clean]) {
+                    domainStats[clean] = { count: 1, firstRank: rankCounter++ };
+                } else {
+                    domainStats[clean].count++;
+                }
+            }
+        };
+
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        });
+
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setViewport({ width: 1280, height: 800 });
+
+        try {
+            console.log('  🌐 Bing Search...');
+            await page.goto(`https://www.bing.com/search?q=${encodeURIComponent(query)}`, {
+                waitUntil: 'domcontentloaded',
+                timeout: 15000
+            });
+            await page.waitForSelector('li.b_algo', { timeout: 8000 }).catch(() => { });
+
+            const bingDomains = await page.evaluate(() => {
+                const domains = [];
+                document.querySelectorAll('li.b_algo').forEach(el => {
+                    const cite = el.querySelector('cite');
+                    if (cite) {
+                        const text = cite.textContent.trim().replace(/^https?:\/\//, '').split(/[\s\/›>]/)[0];
+                        if (text && text.includes('.')) domains.push(text);
+                    }
+                    const link = el.querySelector('h2 a');
+                    if (link && link.href) {
+                        try { domains.push(new URL(link.href).hostname); } catch (e) { }
+                    }
+                });
+                return domains;
+            });
+            bingDomains.forEach(d => addDomain(d));
+            console.log(`  ✅ Bing: ${bingDomains.length} links → ${Object.keys(domainStats).length} unique domains`);
+        } catch (err) { console.warn('  ❌ Bing:', err.message); }
+
+        if (Object.keys(domainStats).length < 5) {
+            try {
+                console.log('  🌐 DuckDuckGo Search...');
+                await page.goto(`https://duckduckgo.com/?q=${encodeURIComponent(query)}`, {
+                    waitUntil: 'networkidle2',
+                    timeout: 15000
+                });
+                await new Promise(r => setTimeout(r, 2000));
+
+                const ddgDomains = await page.evaluate(() => {
+                    const domains = [];
+                    const links = document.querySelectorAll('a[data-testid="result-title-a"], .result__a, article a[href]');
+                    links.forEach(el => {
+                        if (el.href && el.href.startsWith('http') && !el.href.includes('duckduckgo')) {
+                            try { domains.push(new URL(el.href).hostname); } catch (e) { }
+                        }
+                    });
+                    return domains;
+                });
+                ddgDomains.forEach(d => addDomain(d));
+                console.log(`  ✅ DDG: ${ddgDomains.length} links → total ${Object.keys(domainStats).length} unique domains`);
+            } catch (err) { console.warn('  ❌ DDG:', err.message); }
+        }
+
+        await browser.close();
+        browser = null;
+
+        const sortedResults = Object.entries(domainStats)
+            .map(([domain, stats]) => ({ domain, ...stats }))
+            .sort((a, b) => {
+                if (b.count !== a.count) return b.count - a.count;
+                return a.firstRank - b.firstRank;
+            })
+            .slice(0, 5)
+            .map(item => ({ domain: item.domain, count: item.count }));
+
+        console.log('✅ Top Competitors:', sortedResults.map(d => d.domain));
+        res.json({ competitors: sortedResults });
+
+    } catch (error) {
+        console.error('Competitor Error:', error.message);
+        if (browser) await browser.close().catch(() => { });
+        res.json({ competitors: [] });
+    }
+});
+
+// ==================== SITE AUDIT ENDPOINT (Puppeteer) ====================
+app.get('/api/audit', async (req, res) => {
+    const { url, keyword } = req.query;
+    if (!url) return res.status(400).json({ error: 'Missing url' });
+    const targetKeyword = keyword ? keyword.toLowerCase() : null;
+
+    console.log(`🛡️  Auditing Site: ${url} | Keyword: ${targetKeyword || '(none)'}`);
+
+    let browser = null;
+    try {
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        });
+
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setViewport({ width: 1280, height: 800 });
+
+        const startTime = Date.now();
+        const response = await page.goto(url, { waitUntil: 'networkidle0', timeout: 45000 });
+        const loadTime = Date.now() - startTime;
+        const httpStatus = response.status();
+
+        await new Promise(r => setTimeout(r, 1500));
+
+        const data = await page.evaluate(() => {
+            const getMeta = (name) => document.querySelector(`meta[name="${name}"]`)?.content || '';
+            const getOG = (prop) => document.querySelector(`meta[property="og:${prop}"]`)?.content || '';
+
+            // Text
+            const bodyText = document.body.innerText;
+            const paragraphs = Array.from(document.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
+            const firstPara = paragraphs[0] || '';
+
+            // Headings
+            const h1s = Array.from(document.querySelectorAll('h1')).map(h => h.innerText.trim()).filter(Boolean);
+            const h2s = Array.from(document.querySelectorAll('h2')).map(h => h.innerText.trim()).filter(Boolean);
+            const h3s = Array.from(document.querySelectorAll('h3')).map(h => h.innerText.trim()).filter(Boolean);
+
+            // Images
+            const allImages = Array.from(document.querySelectorAll('img')).map(img => ({
+                src: img.src,
+                alt: img.alt ? img.alt.trim() : '',
+                lazy: img.loading === 'lazy'
+            }));
+            const imagesWithoutAlt = allImages.filter(img => !img.alt).length;
+            const lazyImages = allImages.filter(img => img.lazy).length;
+
+            // Links
+            const hostname = window.location.hostname;
+            const links = Array.from(document.querySelectorAll('a')).map(a => a.href);
+            const internal = links.filter(l => l.includes(hostname) || l.startsWith('/')).length;
+            const external = links.filter(l => l.startsWith('http') && !l.includes(hostname)).length;
+
+            // Schema
+            const schemas = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+                .map(s => { try { return JSON.parse(s.innerText); } catch { return null; } })
+                .filter(Boolean);
+            const schemaTypes = [];
+            schemas.forEach(s => {
+                if (s['@graph']) {
+                    s['@graph'].forEach(item => { if (item['@type']) schemaTypes.push(item['@type']); });
+                } else if (s['@type']) {
+                    schemaTypes.push(s['@type']);
+                }
+            });
+
+            // Responsive viewport
+            const responsiveMetaTag = !!document.querySelector('meta[name="viewport"]');
+
+            // ── TECHNICAL SIGNALS ──
+            // Open Graph
+            const ogTitle = getOG('title');
+            const ogDescription = getOG('description');
+            const ogImage = getOG('image');
+
+            // Twitter Card
+            const twitterCard = getMeta('twitter:card');
+
+            // HTML lang
+            const htmlLang = document.documentElement.lang || '';
+
+            // Favicon
+            const hasFavicon = !!(
+                document.querySelector('link[rel="icon"]') ||
+                document.querySelector('link[rel="shortcut icon"]') ||
+                document.querySelector('link[rel="apple-touch-icon"]')
+            );
+
+            // Robots meta (detect noindex)
+            const robotsMeta = getMeta('robots');
+            const isNoIndex = robotsMeta.toLowerCase().includes('noindex');
+
+            // Sitemap link in <head>
+            const hasSitemapLink = !!document.querySelector('link[rel="sitemap"]');
+
+            return {
+                title: document.title,
+                metaDesc: getMeta('description'),
+                canonical: '',
+                bodyText,
+                firstPara,
+                h1s, h2s, h3s,
+                allImages,
+                imagesWithoutAlt,
+                lazyImages,
+                internal,
+                external,
+                schemaTypes: [...new Set(schemaTypes.flat())],
+                hasSchema: schemas.length > 0,
+                htmlSize: document.documentElement.outerHTML.length,
+                responsiveMetaTag,
+                ogTitle, ogDescription, ogImage,
+                twitterCard,
+                htmlLang,
+                hasFavicon,
+                isNoIndex,
+                hasSitemapLink
+            };
+        });
+
+        await browser.close();
+        browser = null;
+
+        // ─────────────── ANALYSIS ───────────────
+        const content = data.bodyText;
+        const wordCount = content.split(/\s+/).filter(Boolean).length;
+        const issues = [];
+
+        const pageSizeKB = Math.round(data.htmlSize / 1024);
+        const loadTimeSec = (loadTime / 1000).toFixed(2);
+
+        // ── 1. PERFORMANCE SCORE (0-100) ──
+        let performanceScore = 100;
+        if (loadTime > 5000) { performanceScore -= 40; issues.push({ type: 'error', msg: `Slow page load: ${loadTimeSec}s (target < 2.5s)` }); }
+        else if (loadTime > 2500) { performanceScore -= 20; issues.push({ type: 'warning', msg: `Page load time is ${loadTimeSec}s (target < 2.5s)` }); }
+        else if (loadTime > 1500) { performanceScore -= 5; }
+        if (pageSizeKB > 500) { performanceScore -= 20; issues.push({ type: 'warning', msg: `Page HTML size is large: ${pageSizeKB} KB. Minify and compress.` }); }
+        else if (pageSizeKB > 200) { performanceScore -= 10; }
+        if (!data.responsiveMetaTag) { performanceScore -= 15; issues.push({ type: 'error', msg: 'No viewport meta tag found — page may not be mobile-friendly.' }); }
+        performanceScore = Math.max(0, performanceScore);
+
+        // ── 2. CONTENT SCORE (0-100) ──
+        let contentScore = 100;
+
+        // Readability (Flesch-Kincaid)
+        const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 5).length || 1;
+        const syllables = content.split(/[aeiouy]+/i).length;
+        const fkScore = 206.835 - (1.015 * (wordCount / sentences)) - (84.6 * (syllables / wordCount));
+        const readability = fkScore > 60 ? 'Good' : fkScore > 30 ? 'Moderate' : 'Poor';
+        if (readability === 'Poor') { contentScore -= 20; issues.push({ type: 'warning', msg: 'Content readability is Poor (low Flesch-Kincaid score). Simplify sentences.' }); }
+        else if (readability === 'Moderate') { contentScore -= 5; issues.push({ type: 'info', msg: 'Content readability is Moderate. Aim for shorter sentences.' }); }
+
+        // Word count / topic coverage
+        if (wordCount < 300) { contentScore -= 30; issues.push({ type: 'error', msg: `Very thin content (${wordCount} words). Minimum 600 words recommended.` }); }
+        else if (wordCount < 600) { contentScore -= 15; issues.push({ type: 'warning', msg: `Content is thin (${wordCount} words). Aim for 600+ words for topic coverage.` }); }
+
+        // Passive voice
+        const passiveMatches = (content.match(/\b(is|are|was|were|be|been|being)\s\w+ed\b/gi) || []).length;
+        const passiveRatio = passiveMatches / sentences;
+        if (passiveRatio > 0.4) { contentScore -= 15; issues.push({ type: 'warning', msg: `High passive voice usage (${(passiveRatio * 100).toFixed(0)}%). Use active voice.` }); }
+
+        // User-first language
+        const youCount = (content.match(/\byou\b/gi) || []).length;
+        if (youCount < 3 && wordCount > 300) { contentScore -= 5; issues.push({ type: 'info', msg: 'Low "you" usage — consider more user-focused language.' }); }
+
+        contentScore = Math.max(0, contentScore);
+
+        // ── 3. ON-PAGE SEO SCORE (0-100) ──
+        let seoScore = 100;
+
+        // Title checks
+        const titleLen = data.title.length;
+        if (!data.title) { seoScore -= 20; issues.push({ type: 'error', msg: 'Page has no title tag.' }); }
+        else if (titleLen < 30) { seoScore -= 10; issues.push({ type: 'warning', msg: `Title tag is too short (${titleLen} chars). Aim for 50–60 chars.` }); }
+        else if (titleLen > 60) { seoScore -= 5; issues.push({ type: 'info', msg: `Title tag is long (${titleLen} chars). Keep it under 60 chars to avoid truncation.` }); }
+
+        // Meta description
+        const metaLen = data.metaDesc.length;
+        if (!data.metaDesc) { seoScore -= 15; issues.push({ type: 'error', msg: 'No meta description found. Write a compelling 120–160 char description.' }); }
+        else if (metaLen < 50) { seoScore -= 10; issues.push({ type: 'warning', msg: `Meta description too short (${metaLen} chars). Aim for 120–160 chars.` }); }
+        else if (metaLen > 160) { seoScore -= 5; issues.push({ type: 'info', msg: `Meta description too long (${metaLen} chars). May be truncated in search results.` }); }
+
+        // H1 checks
+        if (data.h1s.length === 0) { seoScore -= 15; issues.push({ type: 'error', msg: 'No H1 heading found. Every page needs exactly one H1.' }); }
+        else if (data.h1s.length > 1) { seoScore -= 10; issues.push({ type: 'warning', msg: `Multiple H1 tags found (${data.h1s.length}). Use only one H1 per page.` }); }
+
+        // H2 checks
+        if (data.h2s.length === 0) { seoScore -= 5; issues.push({ type: 'warning', msg: 'No H2 headings found. Add H2s to structure your content.' }); }
+
+        // Canonical intentionally not checked (no duplicate content on this site)
+
+        // Images alt
+        if (data.imagesWithoutAlt > 0) {
+            seoScore -= Math.min(10, data.imagesWithoutAlt * 2);
+            issues.push({ type: 'warning', msg: `${data.imagesWithoutAlt} image(s) are missing alt text — important for accessibility & image SEO.` });
+        }
+
+        // Keyword-specific checks
+        const kwCheck = { title: false, h1: false, firstPara: false, h2: false, alt: false, density: 0 };
+        if (targetKeyword) {
+            kwCheck.title = data.title.toLowerCase().includes(targetKeyword);
+            if (!kwCheck.title) { seoScore -= 10; issues.push({ type: 'error', msg: `Keyword "${targetKeyword}" not found in Title tag.` }); }
+
+            kwCheck.h1 = data.h1s.some(h => h.toLowerCase().includes(targetKeyword));
+            if (!kwCheck.h1) { seoScore -= 5; issues.push({ type: 'warning', msg: `Keyword "${targetKeyword}" not found in H1.` }); }
+
+            kwCheck.firstPara = data.firstPara.toLowerCase().includes(targetKeyword);
+            if (!kwCheck.firstPara) { seoScore -= 5; issues.push({ type: 'warning', msg: `Keyword "${targetKeyword}" not found in first paragraph.` }); }
+
+            kwCheck.h2 = data.h2s.some(h => h.toLowerCase().includes(targetKeyword));
+            if (!kwCheck.h2) { seoScore -= 3; issues.push({ type: 'info', msg: `Keyword "${targetKeyword}" not found in any H2 heading.` }); }
+
+            kwCheck.alt = data.allImages.some(img => img.alt.toLowerCase().includes(targetKeyword));
+            if (!kwCheck.alt && data.allImages.length > 0) { seoScore -= 3; issues.push({ type: 'info', msg: `Keyword "${targetKeyword}" not found in any image alt text.` }); }
+
+            const kwCount = (content.toLowerCase().match(new RegExp(targetKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+            kwCheck.density = wordCount > 0 ? (kwCount / wordCount) * 100 : 0;
+            if (kwCheck.density < 0.5) { seoScore -= 5; issues.push({ type: 'warning', msg: `Keyword density is low (${kwCheck.density.toFixed(2)}%). Aim for 1–2%.` }); }
+            if (kwCheck.density > 3.5) { seoScore -= 5; issues.push({ type: 'warning', msg: `Keyword density is high (${kwCheck.density.toFixed(2)}%). Risk of keyword stuffing.` }); }
+        } else {
+            issues.push({ type: 'info', msg: 'No target keyword provided — keyword placement checks skipped.' });
+        }
+
+        seoScore = Math.max(0, seoScore);
+
+        // ── 4. TECHNICAL SCORE (0-100) ──
+        let technicalScore = 100;
+        const isHTTPS = url.startsWith('https://');
+        if (!isHTTPS) { technicalScore -= 10; issues.push({ type: 'error', msg: 'Site is not using HTTPS. This harms rankings and trust.' }); }
+        if (!data.hasSchema) { technicalScore -= 20; issues.push({ type: 'error', msg: 'No Schema.org JSON-LD found. Add structured data for rich results.' }); }
+        if (data.internal === 0) { technicalScore -= 8; issues.push({ type: 'error', msg: 'No internal links found. Internal linking distributes PageRank and aids crawlability.' }); }
+        else if (data.internal < 3) { technicalScore -= 4; issues.push({ type: 'warning', msg: `Only ${data.internal} internal link(s) found. Aim for at least 3-5 per page.` }); }
+        if (data.external === 0) { technicalScore -= 5; issues.push({ type: 'warning', msg: 'No external links. Citing authoritative sources improves trust signals.' }); }
+        if (httpStatus !== 200) { technicalScore -= 10; issues.push({ type: 'error', msg: `Page returned HTTP ${httpStatus}. Expected 200 OK.` }); }
+
+        // OG/Twitter
+        let ogDeduct = 0;
+        if (!data.ogTitle) ogDeduct += 4;
+        if (!data.ogDescription) ogDeduct += 3;
+        if (!data.ogImage) ogDeduct += 3;
+        if (ogDeduct > 0) {
+            technicalScore -= ogDeduct;
+            issues.push({ type: 'warning', msg: `Missing some Open Graph tags. Required for social sharing previews.` });
+        }
+        if (!data.twitterCard) { technicalScore -= 5; issues.push({ type: 'warning', msg: 'No Twitter Card meta tag found.' }); }
+        if (!data.htmlLang) { technicalScore -= 5; issues.push({ type: 'warning', msg: 'Missing lang attribute on <html> tag.' }); }
+        if (!data.hasFavicon) { technicalScore -= 5; issues.push({ type: 'warning', msg: 'No favicon found.' }); }
+        if (data.isNoIndex) { technicalScore -= 20; issues.push({ type: 'error', msg: 'Page has "noindex" — blocked from Google!' }); }
+
+        technicalScore = Math.max(0, technicalScore);
+
+        // ── 5. AUTHORITY METRICS (Mock Logic) ──
+        // Generate pseudo-autority based on domain length, extension, and link counts
+        const host = new URL(url).hostname;
+        const isCommon = host.endsWith('.com') || host.endsWith('.org') || host.endsWith('.net');
+        let mockDR = Math.min(92, Math.floor((100 / host.length) * (isCommon ? 1.5 : 1.0) + (data.internal + data.external) / 2));
+        if (host.includes('google') || host.includes('amazon') || host.includes('facebook')) mockDR = 98;
+
+        let spamScore = Math.floor(Math.random() * 5);
+        if (!isHTTPS) spamScore += 15;
+        if (data.external > 20) spamScore += 10;
+
+        // ── 6. DUPLICATE CONTENT CHECK ──
+        const contentToCodeRatio = (data.bodyText.length / data.htmlSize) * 100;
+        let duplicateSignal = false;
+        if (contentToCodeRatio < 10 && wordCount < 200) {
+            duplicateSignal = true;
+            issues.push({ type: 'warning', msg: 'High risk of duplicate/thin content signal (low text-to-code ratio).' });
+        }
+
+        // ── OVERALL SCORE (weighted average) ──
+        const overallScore = Math.round(
+            (performanceScore * 0.2) +
+            (contentScore * 0.2) +
+            (seoScore * 0.35) +
+            (technicalScore * 0.25)
+        );
+
+        const technicalDetails = {
+            isHTTPS,
+            ogTitle: !!data.ogTitle,
+            ogDescription: !!data.ogDescription,
+            ogImage: !!data.ogImage,
+            twitterCard: !!data.twitterCard,
+            htmlLang: data.htmlLang || null,
+            hasFavicon: data.hasFavicon,
+            isNoIndex: data.isNoIndex,
+            lazyImages: data.lazyImages,
+            totalImages: data.allImages.length,
+            hasSitemapLink: data.hasSitemapLink
+        };
+
+        res.json({
+            url,
+            keyword: targetKeyword,
+            httpStatus,
+            score: overallScore,
+            metrics: {
+                performance: performanceScore,
+                seo: seoScore,
+                content: contentScore,
+                technical: technicalScore
+            },
+            authority: {
+                domainRating: mockDR,
+                pageAuthority: Math.max(10, mockDR - 5),
+                spamScore: `${spamScore}%`
+            },
+            details: {
+                title: data.title,
+                titleLength: data.title.length,
+                metaDescription: data.metaDesc,
+                metaLength: data.metaDesc.length,
+                canonical: data.canonical,
+                wordCount,
+                readability,
+                passiveVoiceRatio: `${(passiveRatio * 100).toFixed(1)}%`,
+                loadTime: `${loadTimeSec}s`,
+                loadTimeMs: loadTime,
+                pageSize: `${pageSizeKB} KB`,
+                pageSizeKB,
+                internalLinks: data.internal,
+                externalLinks: data.external,
+                totalImages: data.allImages.length,
+                imagesWithoutAlt: data.imagesWithoutAlt,
+                schemaTypes: data.schemaTypes,
+                hasSchema: data.hasSchema,
+                responsiveMetaTag: data.responsiveMetaTag,
+                h1s: data.h1s,
+                h2s: data.h2s,
+                h3s: data.h3s,
+                keywordStats: kwCheck,
+                technicalDetails,
+                duplicateRisk: duplicateSignal
+            },
+            issues
+        });
+
+    } catch (error) {
+        try { if (browser) await browser.close(); } catch (_) { }
+        console.error('Audit Error:', error.message);
+        return res.status(500).json({ error: 'Audit Failed', details: error.message });
+    }
+});
+
+
+
+// ==================== POSITION TRACKER ENDPOINT (Puppeteer Stealth + Google) ====================
+app.post('/api/track-position', async (req, res) => {
+    const { keyword, domain, region = 'us' } = req.body;
+    if (!keyword || !domain) return res.status(400).json({ error: 'Missing keyword or domain' });
+
+    console.log(`🎯 Tracking position for "${keyword}" | domain: ${domain} | region: ${region}`);
+
+    const cleanDomain = domain.replace(/^www\./, '').toLowerCase();
+
+    // Region to Google TLD and parameters
+    const regionConfig = {
+        'us': { tld: 'com', gl: 'us', hl: 'en' },
+        'in': { tld: 'co.in', gl: 'in', hl: 'en' },
+        'uk': { tld: 'co.uk', gl: 'uk', hl: 'en' },
+        'ca': { tld: 'ca', gl: 'ca', hl: 'en' },
+        'au': { tld: 'com.au', gl: 'au', hl: 'en' }
+    };
+
+    const config = regionConfig[region] || regionConfig['us'];
+    let allResults = [];
+
+    const isDomainMatch = (target, result) => {
+        if (!target || !result) return false;
+        const t = target.toLowerCase().replace(/^www\./, '');
+        const r = result.toLowerCase().replace(/^www\./, '');
+        // Exact match or subdomain match
+        return r === t || r.endsWith('.' + t) || t.endsWith('.' + r);
+    };
+
+    try {
+        // STRATEGY 1: Puppeteer Stealth (Headless)
+        console.log(`  🔍 Searching Google ${config.tld.toUpperCase()} (Headless Stealth)...`);
+        const puppeteerExtra = require('puppeteer-extra');
+        const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+        puppeteerExtra.use(StealthPlugin());
+
+        const browser = await puppeteerExtra.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
+
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+
+        try {
+            // Use localized Google URL
+            const googleUrl = `https://www.google.${config.tld}/search?q=${encodeURIComponent(keyword)}&gl=${config.gl}&hl=${config.hl}&num=50`;
+            await page.goto(googleUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await new Promise(r => setTimeout(r, 3000));
+
+            const googleResults = await page.evaluate(() => {
+                const items = [];
+                document.querySelectorAll('div.g, div[data-sokoban-container]').forEach(el => {
+                    const linkEl = el.querySelector('a[href^="http"]');
+                    if (!linkEl) return;
+
+                    const href = linkEl.href;
+                    let dom = '';
+                    try { dom = new URL(href).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { }
+
+                    if (dom && dom.includes('.') && (!dom.includes('google.') || dom.includes('sites.google'))) {
+                        const titleEl = el.querySelector('h3');
+                        items.push({
+                            url: href,
+                            domain: dom,
+                            title: titleEl ? titleEl.textContent.trim() : linkEl.textContent.trim()
+                        });
+                    }
+                });
+                return items;
+            });
+
+            if (googleResults.length > 0) {
+                allResults = googleResults;
+                console.log(`  ✅ Google returned ${allResults.length} results.`);
+            }
+        } catch (e) {
+            console.warn(`  ⚠️ Google scraper failed: ${e.message}`);
+        } finally {
+            await browser.close();
+        }
+
+        // STRATEGY 2: DuckDuckGo Fallback (if Google fails)
+        if (allResults.length === 0) {
+            console.log(`  ⚠️ Google failed or blocked. Trying DuckDuckGo...`);
+            const browser = await puppeteerExtra.launch({ headless: true, args: ['--no-sandbox'] });
+            const page = await browser.newPage();
+            try {
+                await page.goto(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+                allResults = await page.evaluate(() => {
+                    const items = [];
+                    document.querySelectorAll('.result').forEach(el => {
+                        const linkEl = el.querySelector('a.result__a');
+                        if (linkEl && linkEl.href) {
+                            let href = linkEl.href;
+                            try { const uddg = new URL(href).searchParams.get('uddg'); if (uddg) href = decodeURIComponent(uddg); } catch (e) { }
+                            let dom = '';
+                            try { dom = new URL(href).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { }
+                            if (dom && dom.includes('.') && !dom.includes('duckduckgo.com')) {
+                                items.push({ url: href, domain: dom, title: linkEl.textContent.trim() });
+                            }
+                        }
+                    });
+                    return items;
+                });
+                console.log(`  ✅ DuckDuckGo returned ${allResults.length} results.`);
+            } catch (err) {
+                console.warn(`  ❌ DuckDuckGo also failed.`);
+            } finally {
+                await browser.close();
+            }
+        }
+
+        if (allResults.length === 0) {
+            throw new Error('All search engines failed. Please try again in a few minutes.');
+        }
+
+        // Remove duplicates
+        const seen = new Set();
+        allResults = allResults.filter(r => {
+            if (seen.has(r.domain)) return false;
+            seen.add(r.domain);
+            return true;
+        });
+
+        // Find the ranking with TIGHT MATCHING
+        let rank = null;
+        for (let i = 0; i < allResults.length; i++) {
+            if (isDomainMatch(cleanDomain, allResults[i].domain)) {
+                rank = i + 1;
+                break;
+            }
+        }
+
+        const competitors = allResults
+            .filter(r => !isDomainMatch(cleanDomain, r.domain))
+            .slice(0, 10)
+            .map(r => ({ domain: r.domain, url: r.url, title: r.title }));
+
+        console.log(`  🏆 Final Rank: ${rank || 'Not Found'}`);
+
+        res.json({
+            keyword,
+            domain: cleanDomain,
+            region,
+            rank,
+            totalResults: allResults.length,
+            competitors
+        });
+    } catch (error) {
+        console.error('Position Tracker Error:', error.message);
+        res.status(500).json({ error: 'Position tracking failed', details: error.message });
+    }
+});
+
+// ==================== AUTHORITY CHECKER ENDPOINT (Mock + Signals) ====================
+app.get('/api/authority', async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'Missing url' });
+
+    try {
+        const host = extractDomain(url);
+        const isCommon = host.endsWith('.com') || host.endsWith('.org') || host.endsWith('.net');
+        const dr = Math.min(94, Math.floor((100 / host.length) * (isCommon ? 1.4 : 1.1) + Math.random() * 20));
+
+        res.json({
+            url,
+            domainRating: dr,
+            pageAuthority: Math.max(10, dr - Math.floor(Math.random() * 8)),
+            spamScore: `${Math.floor(Math.random() * 6)}%`,
+            backlinksCount: Math.floor(dr * Math.random() * 100),
+            referringDomains: Math.floor(dr * Math.random() * 20)
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Authority check failed' });
+    }
+});
+
+// ==================== BACKLINK MONITOR ENDPOINT (Search-based discovery) ====================
+app.get('/api/backlinks', async (req, res) => {
+    const { domain } = req.query;
+    if (!domain) return res.status(400).json({ error: 'Missing domain' });
+
+    console.log(`🔗 Monitoring Backlinks for: ${domain}`);
+
+    let browser = null;
+    try {
+        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+        const page = await browser.newPage();
+
+        // Strategy: Search for the domain as a string to find mentions/links
+        const searchUrl = `https://www.bing.com/search?q=%22${encodeURIComponent(domain)}%22+-site%3A${encodeURIComponent(domain)}`;
+        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+        const mentions = await page.evaluate((targetDomain) => {
+            const results = [];
+            document.querySelectorAll('li.b_algo h2 a').forEach(el => {
+                try {
+                    const url = new URL(el.href);
+                    if (!url.hostname.includes(targetDomain)) {
+                        results.push({
+                            source: url.hostname,
+                            targetUrl: el.href,
+                            title: el.innerText.trim(),
+                            type: Math.random() > 0.5 ? 'Content' : 'Directory',
+                            status: 'New'
+                        });
+                    }
+                } catch (e) { }
+            });
+            return results;
+        }, domain);
+
+        await browser.close();
+        res.json({ domain, backlinks: mentions.slice(0, 15) });
+    } catch (error) {
+        if (browser) await browser.close();
+        res.status(500).json({ error: 'Backlink scan failed' });
+    }
+});
+
+// ==================== VIEWSTATS SCRAPER ENDPOINT (Real Browser - Cloudflare Bypass) ====================
+app.get('/api/viewstats/channel', async (req, res) => {
+    const { handle } = req.query;
+    if (!handle) return res.status(400).json({ error: 'Missing handle' });
+
+    const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
+    console.log(`📊 ViewStats Real Browser Scraper for ${cleanHandle}`);
+
+    let browser = null;
+    try {
+        const { connect } = require('puppeteer-real-browser');
+        const response = await connect({
+            headless: 'auto',
+            turnstile: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            customConfig: {},
+            connectOption: { defaultViewport: null },
+        });
+
+        browser = response.browser;
+        const page = response.page;
+
+        // Try Social Blade first (more structured data)
+        const sbUrl = `https://socialblade.com/youtube/${cleanHandle}`;
+        console.log(`  🌐 Navigating to: ${sbUrl}`);
+
+        await page.goto(sbUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        // Wait for Cloudflare challenge to resolve
+        console.log('  ⏳ Waiting for Cloudflare challenge...');
+        await new Promise(r => setTimeout(r, 8000));
+
+        // Check if we're past Cloudflare
+        const pageTitle = await page.title();
+        console.log(`  📄 Page Title: ${pageTitle}`);
+
+        // If still on Cloudflare, wait more
+        if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare')) {
+            console.log('  ⏳ Still on Cloudflare challenge, waiting longer...');
+            await new Promise(r => setTimeout(r, 10000));
+        }
+
+        // Extract all text content from the page
+        const pageData = await page.evaluate(() => {
+            const bodyText = document.body.innerText;
+            const title = document.title;
+
+            const data = {
+                pageTitle: title,
+                grade: null,
+                sbRank: null,
+                subRank: null,
+                viewsRank: null,
+                countryRank: null,
+                categoryRank: null,
+                monthlyEarnings: null,
+                yearlyEarnings: null,
+                last30DaySubs: null,
+                last30DayViews: null,
+                totalSubs: null,
+                totalViews: null,
+                totalVideos: null
+            };
+
+            // Universal value picker: searches both BEFORE and AFTER a label
+            const pickValue = (label, regexValue) => {
+                const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // Pattern A: Value \n Label (e.g. A++ \n Grade)
+                const regexA = new RegExp(`(${regexValue})\\s*[\\r\\n]+\\s*${escapedLabel}`, 'i');
+                // Pattern B: Label \n Value (e.g. Subscribers \n 469M)
+                const regexB = new RegExp(`${escapedLabel}\\s*[\\:\\s]*[\\r\\n]+\\s*(${regexValue})`, 'i');
+
+                const matchA = bodyText.match(regexA);
+                if (matchA) return matchA[1].trim();
+
+                const matchB = bodyText.match(regexB);
+                if (matchB) return matchB[1].trim();
+
+                return null;
+            };
+
+            const countRegex = '[\\d,.]+[KkMmBb]?[+]?';
+            const rankRegex = '[\\d,.]+(?:st|nd|rd|th)?';
+            const moneyRegex = '\\$?[\\d,.]+[KkMmBb]?(?:\\s*[-]\\s*\\$?[\\d,.]+[KkMmBb]?)?';
+
+            // 1. Core Header Stats
+            data.totalSubs = pickValue('Subscribers', countRegex);
+            data.totalViews = pickValue('Views', '[\\d,.]+');
+            data.totalVideos = pickValue('Videos', '[\\d,.]+');
+
+            // 2. Boxes (Value usually above Label)
+            data.grade = pickValue('Grade', '[A-F][+-]{0,2}');
+            data.sbRank = pickValue('SB Rank', rankRegex);
+            data.subRank = pickValue('Subscribers? Rank', rankRegex);
+            data.viewsRank = pickValue('Views? Rank', rankRegex);
+
+            // 3. Earnings (Value usually above Label)
+            data.monthlyEarnings = pickValue('Monthly Estimated Earnings', moneyRegex);
+            data.yearlyEarnings = pickValue('Yearly Estimated Earnings', moneyRegex);
+
+            // 4. 30-Day Growth
+            data.last30DaySubs = pickValue('Subscribers for the last 30 days', countRegex);
+            data.last30DayViews = pickValue('Views for the last 30 days', countRegex);
+
+            // 5. DOM-based fallback for Grade (very safe)
+            if (!data.grade) {
+                const all = Array.from(document.querySelectorAll('*'));
+                const gradeBox = all.find(el => el.innerText.trim().toLowerCase() === 'grade');
+                if (gradeBox && gradeBox.parentElement) {
+                    const siblings = Array.from(gradeBox.parentElement.children);
+                    const gradeVal = siblings.find(s => s.innerText.trim().match(/^[A-F][+-]{0,2}$/i));
+                    if (gradeVal) data.grade = gradeVal.innerText.trim().toUpperCase();
+                }
+            }
+
+            data._bodySnippet = bodyText.substring(0, 5000);
+            return data;
+        });
+
+        // Take a screenshot for debugging (Absolute path)
+        await page.screenshot({ path: 'C:/Users/VANSH SINGH/projects/main website 3/sb_screenshot.png' });
+        console.log('  📸 Screenshot saved to C:/Users/VANSH SINGH/projects/main website 3/sb_screenshot.png');
+
+        await browser.close();
+        browser = null;
+
+        console.log(`  ✅ Scraped: Grade=${pageData.grade}, Monthly=${pageData.monthlyEarnings}, SubRank=${pageData.subRank}`);
+
+        res.json({
+            success: true,
+            handle: cleanHandle,
+            source: 'Social Blade (Real Browser)',
+            data: {
+                grade: pageData.grade,
+                sbRank: pageData.sbRank,
+                subRank: pageData.subRank,
+                viewsRank: pageData.viewsRank,
+                countryRank: pageData.countryRank,
+                monthlyEarnings: pageData.monthlyEarnings,
+                yearlyEarnings: pageData.yearlyEarnings,
+                last30DaySubs: pageData.last30DaySubs,
+                last30DayViews: pageData.last30DayViews,
+                totalSubs: pageData.totalSubs,
+                totalViews: pageData.totalViews,
+                totalVideos: pageData.totalVideos,
+                _debug: {
+                    pageTitle: pageData.pageTitle,
+                    bodySnippet: pageData._bodySnippet
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('ViewStats Scraper Error:', error.message);
+        if (browser) {
+            try { await browser.close(); } catch (e) { }
+        }
+        res.status(500).json({
+            success: false,
+            error: 'Scraping failed',
+            details: error.message
+        });
+    }
+});
+
+
+// ==================== OXAPAY PAYMENT INTEGRATION ====================
+app.post('/api/payments/create-invoice', async (req, res) => {
+    const { amount, currency, description, orderId, email } = req.body;
+
+    if (!amount || !currency) {
+        return res.status(400).json({ error: 'Amount and currency are required' });
+    }
+
+    try {
+        const payload = {
+            amount: amount,
+            currency: currency || 'USD',
+            lifetime: 60, // 60 minutes
+            fee_paid_by_payer: 0,
+            under_paid_coverage: 1,
+            callback_url: 'https://flamercoal-backend.onrender.com/api/payments/callback',
+            return_url: 'https://flamercoal.web.app/success',
+            description: description || 'Flamercoal Pack',
+            order_id: `COAL_${amount}_${orderId}`, // Preserve UID from frontend
+            email: email || ''
+        };
+
+        console.log(`💳 Creating Oxapay Invoice for ${amount} ${currency}...`);
+
+        const axios = require('axios');
+        const responseData = await axios.post('https://api.oxapay.com/v1/payment/invoice', payload, {
+            headers: {
+                'Content-Type': 'application/json',
+                'merchant_api_key': process.env.OXAPAY_MERCHANT_KEY
+            }
+        });
+        const data = responseData.data;
+
+        if (data.status === 200) {
+            console.log(`✅ Invoice Created: ${data.trackId}`);
+            res.json({
+                success: true,
+                payUrl: data.payUrl,
+                trackId: data.trackId,
+                address: data.address,
+                paymentCurrency: data.currency
+            });
+        } else {
+            console.error('❌ Oxapay Error:', data.message);
+            res.status(500).json({ error: 'Failed to create payment invoice', details: data.message });
+        }
+    } catch (error) {
+        console.error('❌ Payment Server Error:', error.message);
+        res.status(500).json({ error: 'Internal server error during payment creation' });
+    }
+});
+
+// Oxapay IPN Callback (Update with real logic)
+app.post('/api/payments/callback', async (req, res) => {
+    const data = req.body;
+    console.log('🔔 Received Oxapay IPN Callback:', data);
+
+    try {
+        if (data.status === 'paid' || data.status === 'confirmed') {
+            const { orderId, trackId, amount, currency } = data;
+            console.log(`💰 Payment CONFIRMED for Order ${orderId} (${amount} ${currency})`);
+
+            // Parse orderId: COAL_AMOUNT_order_UID_TIMESTAMP
+            const parts = orderId.split('_');
+            if (parts[0] === 'COAL' && parts[2] === 'order') {
+                const coalAmount = parseInt(parts[1]);
+                const userId = parts[3];
+
+                if (db && userId && coalAmount) {
+                    console.log(`📦 Fulfilling credits: ${coalAmount} 🔥 for User ${userId}`);
+                    const userRef = db.ref(`users/${userId}/powers`);
+                    await userRef.transaction((current) => (current || 0) + coalAmount);
+
+                    // Log receipt
+                    await db.ref(`transactions/${trackId}`).set({
+                        userId,
+                        amount: coalAmount,
+                        currency,
+                        orderId,
+                        timestamp: Date.now()
+                    });
+
+                    console.log(`🔥 CREDITED ${coalAmount} Coal! Fulfillment complete.`);
+                } else {
+                    console.error('❌ Fulfillment Failed: db, userId, or amount missing');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('❌ IPN Handler Error:', error.message);
+    }
+
+    res.sendStatus(200);
+});
+
+app.listen(PORT, () => {
+    console.log(`✅ Keyword Server running on port ${PORT}`);
+});
