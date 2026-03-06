@@ -10,16 +10,31 @@ const PORT = process.env.PORT || 3001;
 // Initialize Firebase Admin (Optional: Required for auto-credits)
 let admin, db;
 try {
-    const serviceAccount = require("./serviceAccountKey.json");
     admin = require("firebase-admin");
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: "https://flamercoal-default-rtdb.firebaseio.com"
-    });
-    db = admin.database();
-    console.log("✅ Firebase Admin Initialized");
+    let serviceAccount;
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+        try {
+            serviceAccount = require("./serviceAccountKey.json");
+        } catch (fileErr) {
+            console.warn("⚠️ serviceAccountKey.json not found, checking environment...");
+        }
+    }
+
+    if (serviceAccount) {
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            databaseURL: "https://flamercoal-default-rtdb.firebaseio.com"
+        });
+        db = admin.database();
+        console.log("✅ Firebase Admin Initialized");
+    } else {
+        throw new Error("No service account credentials found");
+    }
 } catch (e) {
-    console.warn("⚠️ Firebase Admin NOT initialized (serviceAccountKey.json missing). Auto-credits disabled.");
+    console.warn("⚠️ Firebase Admin NOT initialized. Auto-credits disabled. Reason:", e.message);
 }
 const allowedOrigins = [
     'https://flamercoal.web.app',
@@ -28,16 +43,7 @@ const allowedOrigins = [
     'http://localhost:3000'
 ];
 
-app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true
-}));
+app.use(cors());
 app.use(express.json());
 
 
@@ -228,7 +234,7 @@ app.get('/api/competitors', async (req, res) => {
     }
 });
 
-// ==================== SITE AUDIT ENDPOINT (Puppeteer) ====================
+// ==================== SITE AUDIT ENDPOINT (Cheerio + Axios) ====================
 app.get('/api/audit', async (req, res) => {
     const { url, keyword } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing url' });
@@ -236,122 +242,112 @@ app.get('/api/audit', async (req, res) => {
 
     console.log(`🛡️  Auditing Site: ${url} | Keyword: ${targetKeyword || '(none)'}`);
 
-    let browser = null;
     try {
-        browser = await puppeteer.launch({
-            headless: 'new',
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
-        });
-
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.setViewport({ width: 1280, height: 800 });
+        const axios = require('axios');
+        const cheerio = require('cheerio');
 
         const startTime = Date.now();
-        const response = await page.goto(url, { waitUntil: 'networkidle0', timeout: 45000 });
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            timeout: 30000, // 30 seconds
+            validateStatus: () => true // Resolve all HTTP statuses
+        });
+
         const loadTime = Date.now() - startTime;
-        const httpStatus = response.status();
+        const httpStatus = response.status;
+        const html = response.data;
+        const $ = cheerio.load(html);
 
-        await new Promise(r => setTimeout(r, 1500));
+        const getMeta = (name) => $(`meta[name="${name}"]`).attr('content') || '';
+        const getOG = (prop) => $(`meta[property="og:${prop}"]`).attr('content') || '';
 
-        const data = await page.evaluate(() => {
-            const getMeta = (name) => document.querySelector(`meta[name="${name}"]`)?.content || '';
-            const getOG = (prop) => document.querySelector(`meta[property="og:${prop}"]`)?.content || '';
+        // Text
+        const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
+        const paragraphs = $('p').map((i, el) => $(el).text().trim()).get().filter(Boolean);
+        const firstPara = paragraphs[0] || '';
 
-            // Text
-            const bodyText = document.body.innerText;
-            const paragraphs = Array.from(document.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
-            const firstPara = paragraphs[0] || '';
+        // Headings
+        const h1s = $('h1').map((i, el) => $(el).text().trim()).get().filter(Boolean);
+        const h2s = $('h2').map((i, el) => $(el).text().trim()).get().filter(Boolean);
+        const h3s = $('h3').map((i, el) => $(el).text().trim()).get().filter(Boolean);
 
-            // Headings
-            const h1s = Array.from(document.querySelectorAll('h1')).map(h => h.innerText.trim()).filter(Boolean);
-            const h2s = Array.from(document.querySelectorAll('h2')).map(h => h.innerText.trim()).filter(Boolean);
-            const h3s = Array.from(document.querySelectorAll('h3')).map(h => h.innerText.trim()).filter(Boolean);
+        // Images
+        const allImages = $('img').map((i, el) => ({
+            src: $(el).attr('src') || '',
+            alt: $(el).attr('alt') ? $(el).attr('alt').trim() : '',
+            lazy: $(el).attr('loading') === 'lazy'
+        })).get();
 
-            // Images
-            const allImages = Array.from(document.querySelectorAll('img')).map(img => ({
-                src: img.src,
-                alt: img.alt ? img.alt.trim() : '',
-                lazy: img.loading === 'lazy'
-            }));
-            const imagesWithoutAlt = allImages.filter(img => !img.alt).length;
-            const lazyImages = allImages.filter(img => img.lazy).length;
+        const imagesWithoutAlt = allImages.filter(img => !img.alt).length;
+        const lazyImages = allImages.filter(img => img.lazy).length;
 
-            // Links
-            const hostname = window.location.hostname;
-            const links = Array.from(document.querySelectorAll('a')).map(a => a.href);
-            const internal = links.filter(l => l.includes(hostname) || l.startsWith('/')).length;
-            const external = links.filter(l => l.startsWith('http') && !l.includes(hostname)).length;
+        // Links
+        let hostname = '';
+        try { hostname = new URL(url).hostname; } catch (e) { }
 
-            // Schema
-            const schemas = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
-                .map(s => { try { return JSON.parse(s.innerText); } catch { return null; } })
-                .filter(Boolean);
-            const schemaTypes = [];
-            schemas.forEach(s => {
+        const links = $('a').map((i, el) => $(el).attr('href')).get().filter(Boolean);
+        const internal = links.filter(l => l.includes(hostname) || l.startsWith('/')).length;
+        const external = links.filter(l => l.startsWith('http') && !l.includes(hostname)).length;
+
+        // Schema
+        const schemaTypes = [];
+        let hasSchema = false;
+        $('script[type="application/ld+json"]').each((i, el) => {
+            try {
+                const s = JSON.parse($(el).html());
+                hasSchema = true;
                 if (s['@graph']) {
                     s['@graph'].forEach(item => { if (item['@type']) schemaTypes.push(item['@type']); });
                 } else if (s['@type']) {
                     schemaTypes.push(s['@type']);
                 }
-            });
-
-            // Responsive viewport
-            const responsiveMetaTag = !!document.querySelector('meta[name="viewport"]');
-
-            // ── TECHNICAL SIGNALS ──
-            // Open Graph
-            const ogTitle = getOG('title');
-            const ogDescription = getOG('description');
-            const ogImage = getOG('image');
-
-            // Twitter Card
-            const twitterCard = getMeta('twitter:card');
-
-            // HTML lang
-            const htmlLang = document.documentElement.lang || '';
-
-            // Favicon
-            const hasFavicon = !!(
-                document.querySelector('link[rel="icon"]') ||
-                document.querySelector('link[rel="shortcut icon"]') ||
-                document.querySelector('link[rel="apple-touch-icon"]')
-            );
-
-            // Robots meta (detect noindex)
-            const robotsMeta = getMeta('robots');
-            const isNoIndex = robotsMeta.toLowerCase().includes('noindex');
-
-            // Sitemap link in <head>
-            const hasSitemapLink = !!document.querySelector('link[rel="sitemap"]');
-
-            return {
-                title: document.title,
-                metaDesc: getMeta('description'),
-                canonical: '',
-                bodyText,
-                firstPara,
-                h1s, h2s, h3s,
-                allImages,
-                imagesWithoutAlt,
-                lazyImages,
-                internal,
-                external,
-                schemaTypes: [...new Set(schemaTypes.flat())],
-                hasSchema: schemas.length > 0,
-                htmlSize: document.documentElement.outerHTML.length,
-                responsiveMetaTag,
-                ogTitle, ogDescription, ogImage,
-                twitterCard,
-                htmlLang,
-                hasFavicon,
-                isNoIndex,
-                hasSitemapLink
-            };
+            } catch (e) { }
         });
 
-        await browser.close();
-        browser = null;
+        // Responsive viewport
+        const responsiveMetaTag = !!$('meta[name="viewport"]').length;
+
+        // ── TECHNICAL SIGNALS ──
+        const ogTitle = getOG('title');
+        const ogDescription = getOG('description');
+        const ogImage = getOG('image');
+        const twitterCard = getMeta('twitter:card');
+        const htmlLang = $('html').attr('lang') || '';
+        const hasFavicon = !!(
+            $('link[rel="icon"]').length ||
+            $('link[rel="shortcut icon"]').length ||
+            $('link[rel="apple-touch-icon"]').length
+        );
+
+        const robotsMeta = getMeta('robots');
+        const isNoIndex = robotsMeta.toLowerCase().includes('noindex');
+        const hasSitemapLink = !!$('link[rel="sitemap"]').length;
+
+        const data = {
+            title: $('title').text(),
+            metaDesc: getMeta('description'),
+            canonical: $('link[rel="canonical"]').attr('href') || '',
+            bodyText,
+            firstPara,
+            h1s, h2s, h3s,
+            allImages,
+            imagesWithoutAlt,
+            lazyImages,
+            internal,
+            external,
+            schemaTypes: [...new Set(schemaTypes.flat())],
+            hasSchema,
+            htmlSize: Buffer.byteLength(html, 'utf8'),
+            responsiveMetaTag,
+            ogTitle, ogDescription, ogImage,
+            twitterCard,
+            htmlLang,
+            hasFavicon,
+            isNoIndex,
+            hasSitemapLink
+        };
 
         // ─────────────── ANALYSIS ───────────────
         const content = data.bodyText;
@@ -964,99 +960,118 @@ app.get('/api/viewstats/channel', async (req, res) => {
 });
 
 
-// ==================== OXAPAY PAYMENT INTEGRATION ====================
+// ==================== NOWPAYMENTS INTEGRATION ====================
 app.post('/api/payments/create-invoice', async (req, res) => {
-    const { amount, currency, description, orderId, email } = req.body;
+    const { amount, currency, description, userId } = req.body;
 
-    if (!amount || !currency) {
-        return res.status(400).json({ error: 'Amount and currency are required' });
+    if (!amount || !userId) {
+        return res.status(400).json({ error: 'Amount and userId are required' });
     }
 
     try {
+        const formattedOrderId = `COAL_${amount}_order_${userId}_${Date.now()}`;
+
         const payload = {
-            amount: amount,
-            currency: currency || 'USD',
-            lifetime: 60, // 60 minutes
-            fee_paid_by_payer: 0,
-            under_paid_coverage: 1,
-            callback_url: 'https://flamercoal-backend.onrender.com/api/payments/callback',
-            return_url: 'https://flamercoal.web.app/success',
-            description: description || 'Flamercoal Pack',
-            order_id: `COAL_${amount}_${orderId}`, // Preserve UID from frontend
-            email: email || ''
+            price_amount: parseFloat(amount),
+            price_currency: currency || 'usd',
+            order_id: formattedOrderId,
+            order_description: description || `Flamercoal: ${amount} Pack`,
+            ipn_callback_url: 'https://flamercoal-backend.onrender.com/api/payments/callback',
+            success_url: 'https://flamercoal.web.app/success',
+            cancel_url: 'https://flamercoal.web.app/pricing'
         };
 
-        console.log(`💳 Creating Oxapay Invoice for ${amount} ${currency}...`);
+        const apiKey = process.env.NOWPAYMENTS_API_KEY;
+
+        if (!apiKey) {
+            console.error('❌ Missing NOWPAYMENTS_API_KEY in environment');
+            return res.status(500).json({ error: 'Payment gateway configuration missing' });
+        }
 
         const axios = require('axios');
-        const responseData = await axios.post('https://api.oxapay.com/v1/payment/invoice', payload, {
+        console.log(`💳 Creating NOWPayments Invoice for ${amount} (Order: ${formattedOrderId})...`);
+
+        const responseData = await axios.post('https://api.nowpayments.io/v1/invoice', payload, {
             headers: {
-                'Content-Type': 'application/json',
-                'merchant_api_key': process.env.OXAPAY_MERCHANT_KEY
+                'x-api-key': apiKey,
+                'Content-Type': 'application/json'
             }
         });
-        const data = responseData.data;
 
-        if (data.status === 200) {
-            console.log(`✅ Invoice Created: ${data.trackId}`);
+        const nowResp = responseData.data;
+
+        if (nowResp.invoice_url) {
+            console.log(`✅ NOWPayments Invoice Created: ${nowResp.id}`);
             res.json({
                 success: true,
-                payUrl: data.payUrl,
-                trackId: data.trackId,
-                address: data.address,
-                paymentCurrency: data.currency
+                payUrl: nowResp.invoice_url,
+                trackId: nowResp.id
             });
         } else {
-            console.error('❌ Oxapay Error:', data.message);
-            res.status(500).json({ error: 'Failed to create payment invoice', details: data.message });
+            console.error('❌ NOWPayments API Error:', nowResp);
+            res.status(500).json({ error: 'Failed to create payment invoice' });
         }
     } catch (error) {
-        console.error('❌ Payment Server Error:', error.message);
+        console.error('❌ Payment Server Error:', error.response ? error.response.data : error.message);
         res.status(500).json({ error: 'Internal server error during payment creation' });
     }
 });
 
-// Oxapay IPN Callback (Update with real logic)
+// NOWPayments IPN Webhook
 app.post('/api/payments/callback', async (req, res) => {
-    const data = req.body;
-    console.log('🔔 Received Oxapay IPN Callback:', data);
+    const body = req.body;
+    const hmacHeader = req.headers['x-nowpayments-sig'];
+    console.log('🔔 Received NOWPayments Webhook for Order:', body.order_id);
 
     try {
-        if (data.status === 'paid' || data.status === 'confirmed') {
-            const { orderId, trackId, amount, currency } = data;
-            console.log(`💰 Payment CONFIRMED for Order ${orderId} (${amount} ${currency})`);
+        // Verification logic (Optional but recommended: use ipn_secret)
+        // For simplicity during initial setup, we'll check the status first
+        const { order_id, payment_status, payment_id, pay_amount, pay_currency } = body;
 
-            // Parse orderId: COAL_AMOUNT_order_UID_TIMESTAMP
-            const parts = orderId.split('_');
+        if (payment_status === 'finished' || payment_status === 'confirmed') {
+            console.log(`💰 NOWPayments Payment CONFIRMED for ${order_id} (ID: ${payment_id})`);
+
+            const parts = order_id.split('_');
             if (parts[0] === 'COAL' && parts[2] === 'order') {
-                const coalAmount = parseInt(parts[1]);
+                const coalAmount = parseInt(parts[1], 10);
                 const userId = parts[3];
 
-                if (db && userId && coalAmount) {
-                    console.log(`📦 Fulfilling credits: ${coalAmount} 🔥 for User ${userId}`);
-                    const userRef = db.ref(`users/${userId}/powers`);
-                    await userRef.transaction((current) => (current || 0) + coalAmount);
+                if (db && userId && !isNaN(coalAmount)) {
+                    let reward = 0;
+                    if (coalAmount === 3) reward = 1000;
+                    else if (coalAmount === 10) reward = 5000;
+                    else if (coalAmount === 25) reward = 15000;
+                    else reward = coalAmount * 333;
 
-                    // Log receipt
-                    await db.ref(`transactions/${trackId}`).set({
-                        userId,
-                        amount: coalAmount,
-                        currency,
-                        orderId,
-                        timestamp: Date.now()
-                    });
+                    if (reward > 0) {
+                        const userRef = db.ref(`users/${userId}`);
+                        const snapshot = await userRef.once('value');
+                        const currentBalance = snapshot.val()?.coalBalance || 0;
+                        const newBalance = currentBalance + reward;
 
-                    console.log(`🔥 CREDITED ${coalAmount} Coal! Fulfillment complete.`);
-                } else {
-                    console.error('❌ Fulfillment Failed: db, userId, or amount missing');
+                        await userRef.update({ coalBalance: newBalance });
+
+                        await db.ref(`transactions/${payment_id}`).set({
+                            userId,
+                            amount: coalAmount,
+                            coalReward: reward,
+                            currency: pay_currency,
+                            orderId: order_id,
+                            timestamp: Date.now(),
+                            gateway: 'nowpayments'
+                        });
+
+                        console.log(`🔥 CREDITED ${reward} Coal to User ${userId}!`);
+                    }
                 }
             }
         }
-    } catch (error) {
-        console.error('❌ IPN Handler Error:', error.message);
-    }
 
-    res.sendStatus(200);
+        res.sendStatus(200);
+    } catch (error) {
+        console.error('❌ Webhook Error:', error.message);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
 app.listen(PORT, () => {

@@ -3,14 +3,18 @@
     "version": "1.0.0",
     "description": "Backend proxy for Google Ads Keyword Planner API",
     "main": "index.js",
+    "engines": {
+        "node": ">=22.0.0"
+    },
     "scripts": {
         "start": "node index.js",
         "dev": "node index.js"
     },
     "dependencies": {
-        "axios": "^1.13.5",
+        "axios": "^1.13.6",
         "cheerio": "^1.2.0",
         "cors": "^2.8.5",
+        "crypto": "^1.0.1",
         "dotenv": "^16.4.5",
         "express": "^4.21.0",
         "firebase-admin": "^11.11.1",

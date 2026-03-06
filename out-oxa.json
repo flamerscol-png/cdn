@@ -1,0 +1,12 @@
+{
+  "data": {
+    "track_id": "150384962",
+    "payment_url": "https://pay.oxapay.com/12149990/150384962",
+    "expired_at": 1772698462,
+    "date": 1772694862
+  },
+  "message": "Operation completed successfully!",
+  "error": {},
+  "status": 200,
+  "version": "1.0.0"
+}
