@@ -791,9 +791,11 @@ app.get('/api/backlinks', async (req, res) => {
 
 // ==================== VIEWSTATS SCRAPER ENDPOINT (Real Browser - Cloudflare Bypass) ====================
 // ==================== YOUTUBE STRATEGY ENGINE ====================
-const YOUTUBE_API_KEY = process.env.VITE_YOUTUBE_DATA_API_KEY;
-const GROQ_API_KEY = process.env.VITE_GROQ_API_KEY;
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_DATA_API_KEY || process.env.YOUTUBE_DATA_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
 
+if (!YOUTUBE_API_KEY) console.error("⚠️ WARNING: Missing YouTube API Key in server environment!");
+if (!GROQ_API_KEY) console.error("⚠️ WARNING: Missing Groq API Key in server environment!");
 // --- KEEP ALIVE ENDPOINT ---
 // Used to prevent Render free tier from sleeping
 app.get('/api/keep-alive', (req, res) => {
