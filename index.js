@@ -152,10 +152,13 @@ app.get('/api/competitors', async (req, res) => {
             }
         };
 
-        browser = await puppeteer.launch({
+        const launchOptions = {
             headless: 'new',
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
-        });
+        };
+
+        browser = await puppeteer.launch(launchOptions);
 
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
@@ -477,16 +480,6 @@ app.get('/api/audit', async (req, res) => {
 
         technicalScore = Math.max(0, technicalScore);
 
-        // ── 5. AUTHORITY METRICS (Mock Logic) ──
-        // Generate pseudo-autority based on domain length, extension, and link counts
-        const host = new URL(url).hostname;
-        const isCommon = host.endsWith('.com') || host.endsWith('.org') || host.endsWith('.net');
-        let mockDR = Math.min(92, Math.floor((100 / host.length) * (isCommon ? 1.5 : 1.0) + (data.internal + data.external) / 2));
-        if (host.includes('google') || host.includes('amazon') || host.includes('facebook')) mockDR = 98;
-
-        let spamScore = Math.floor(Math.random() * 5);
-        if (!isHTTPS) spamScore += 15;
-        if (data.external > 20) spamScore += 10;
 
         // ── 6. DUPLICATE CONTENT CHECK ──
         const contentToCodeRatio = (data.bodyText.length / data.htmlSize) * 100;
@@ -528,11 +521,6 @@ app.get('/api/audit', async (req, res) => {
                 seo: seoScore,
                 content: contentScore,
                 technical: technicalScore
-            },
-            authority: {
-                domainRating: mockDR,
-                pageAuthority: Math.max(10, mockDR - 5),
-                spamScore: `${spamScore}%`
             },
             details: {
                 title: data.title,
@@ -609,10 +597,13 @@ app.post('/api/track-position', async (req, res) => {
         const StealthPlugin = require('puppeteer-extra-plugin-stealth');
         puppeteerExtra.use(StealthPlugin());
 
-        const browser = await puppeteerExtra.launch({
+        const launchOptions = {
             headless: true,
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        };
+
+        const browser = await puppeteerExtra.launch(launchOptions);
 
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
@@ -760,7 +751,11 @@ app.get('/api/backlinks', async (req, res) => {
 
     let browser = null;
     try {
-        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+        browser = await puppeteer.launch({
+            headless: 'new',
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
         const page = await browser.newPage();
 
         // Strategy: Search for the domain as a string to find mentions/links
@@ -795,169 +790,218 @@ app.get('/api/backlinks', async (req, res) => {
 });
 
 // ==================== VIEWSTATS SCRAPER ENDPOINT (Real Browser - Cloudflare Bypass) ====================
-app.get('/api/viewstats/channel', async (req, res) => {
-    const { handle } = req.query;
-    if (!handle) return res.status(400).json({ error: 'Missing handle' });
+// ==================== YOUTUBE STRATEGY ENGINE ====================
+const YOUTUBE_API_KEY = process.env.VITE_YOUTUBE_DATA_API_KEY;
+const GROQ_API_KEY = process.env.VITE_GROQ_API_KEY;
 
+// --- KEEP ALIVE ENDPOINT ---
+// Used to prevent Render free tier from sleeping
+app.get('/api/keep-alive', (req, res) => {
+    console.log("🟢 Keep-alive ping received");
+    res.status(200).send('Backend is awake and ready');
+});
+
+// ─── ROBUST SOCIAL BLADE SCRAPER ───
+async function getSocialBladeData(handle) {
     const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
-    console.log(`📊 ViewStats Real Browser Scraper for ${cleanHandle}`);
-
+    const { connect } = require('puppeteer-real-browser');
     let browser = null;
     try {
-        const { connect } = require('puppeteer-real-browser');
-        const response = await connect({
+        console.log(`  🚀 Scraper: Launching Real Browser for ${handle}...`);
+        const connectOptions = {
             headless: 'auto',
             turnstile: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
             customConfig: {},
-            connectOption: { defaultViewport: null },
-        });
+            connectOption: {
+                defaultViewport: null,
+                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
+            },
+        };
 
+        const response = await connect(connectOptions);
         browser = response.browser;
         const page = response.page;
-
-        // Try Social Blade first (more structured data)
         const sbUrl = `https://socialblade.com/youtube/${cleanHandle}`;
-        console.log(`  🌐 Navigating to: ${sbUrl}`);
 
+        console.log(`  🌐 Scraper: Navigating to ${sbUrl}`);
         await page.goto(sbUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-        // Wait for Cloudflare challenge to resolve
-        console.log('  ⏳ Waiting for Cloudflare challenge...');
-        await new Promise(r => setTimeout(r, 8000));
+        // Wait for potential Cloudflare challenge
+        await new Promise(r => setTimeout(r, 10000));
 
-        // Check if we're past Cloudflare
-        const pageTitle = await page.title();
-        console.log(`  📄 Page Title: ${pageTitle}`);
-
-        // If still on Cloudflare, wait more
-        if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare')) {
-            console.log('  ⏳ Still on Cloudflare challenge, waiting longer...');
-            await new Promise(r => setTimeout(r, 10000));
-        }
-
-        // Extract all text content from the page
         const pageData = await page.evaluate(() => {
             const bodyText = document.body.innerText;
             const title = document.title;
-
-            const data = {
-                pageTitle: title,
-                grade: null,
-                sbRank: null,
-                subRank: null,
-                viewsRank: null,
-                countryRank: null,
-                categoryRank: null,
-                monthlyEarnings: null,
-                yearlyEarnings: null,
-                last30DaySubs: null,
-                last30DayViews: null,
-                totalSubs: null,
-                totalViews: null,
-                totalVideos: null
-            };
-
-            // Universal value picker: searches both BEFORE and AFTER a label
-            const pickValue = (label, regexValue) => {
-                const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                // Pattern A: Value \n Label (e.g. A++ \n Grade)
-                const regexA = new RegExp(`(${regexValue})\\s*[\\r\\n]+\\s*${escapedLabel}`, 'i');
-                // Pattern B: Label \n Value (e.g. Subscribers \n 469M)
-                const regexB = new RegExp(`${escapedLabel}\\s*[\\:\\s]*[\\r\\n]+\\s*(${regexValue})`, 'i');
-
-                const matchA = bodyText.match(regexA);
-                if (matchA) return matchA[1].trim();
-
-                const matchB = bodyText.match(regexB);
-                if (matchB) return matchB[1].trim();
-
-                return null;
-            };
-
-            const countRegex = '[\\d,.]+[KkMmBb]?[+]?';
-            const rankRegex = '[\\d,.]+(?:st|nd|rd|th)?';
-            const moneyRegex = '\\$?[\\d,.]+[KkMmBb]?(?:\\s*[-]\\s*\\$?[\\d,.]+[KkMmBb]?)?';
-
-            // 1. Core Header Stats
-            data.totalSubs = pickValue('Subscribers', countRegex);
-            data.totalViews = pickValue('Views', '[\\d,.]+');
-            data.totalVideos = pickValue('Videos', '[\\d,.]+');
-
-            // 2. Boxes (Value usually above Label)
-            data.grade = pickValue('Grade', '[A-F][+-]{0,2}');
-            data.sbRank = pickValue('SB Rank', rankRegex);
-            data.subRank = pickValue('Subscribers? Rank', rankRegex);
-            data.viewsRank = pickValue('Views? Rank', rankRegex);
-
-            // 3. Earnings (Value usually above Label)
-            data.monthlyEarnings = pickValue('Monthly Estimated Earnings', moneyRegex);
-            data.yearlyEarnings = pickValue('Yearly Estimated Earnings', moneyRegex);
-
-            // 4. 30-Day Growth
-            data.last30DaySubs = pickValue('Subscribers for the last 30 days', countRegex);
-            data.last30DayViews = pickValue('Views for the last 30 days', countRegex);
-
-            // 5. DOM-based fallback for Grade (very safe)
-            if (!data.grade) {
-                const all = Array.from(document.querySelectorAll('*'));
-                const gradeBox = all.find(el => el.innerText.trim().toLowerCase() === 'grade');
-                if (gradeBox && gradeBox.parentElement) {
-                    const siblings = Array.from(gradeBox.parentElement.children);
-                    const gradeVal = siblings.find(s => s.innerText.trim().match(/^[A-F][+-]{0,2}$/i));
-                    if (gradeVal) data.grade = gradeVal.innerText.trim().toUpperCase();
-                }
-            }
-
-            data._bodySnippet = bodyText.substring(0, 5000);
-            return data;
+            return { bodyText, title };
         });
 
-        // Take a screenshot for debugging (Absolute path)
-        await page.screenshot({ path: 'C:/Users/VANSH SINGH/projects/main website 3/sb_screenshot.png' });
-        console.log('  📸 Screenshot saved to C:/Users/VANSH SINGH/projects/main website 3/sb_screenshot.png');
-
         await browser.close();
-        browser = null;
 
-        console.log(`  ✅ Scraped: Grade=${pageData.grade}, Monthly=${pageData.monthlyEarnings}, SubRank=${pageData.subRank}`);
+        if (pageData.title.includes('Just a moment') || pageData.title.includes('Cloudflare')) {
+            console.log("  ❌ Scraper: Blocked by Cloudflare");
+            return null;
+        }
+
+        const pickValue = (text, label, regexValue) => {
+            const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regexA = new RegExp(`(${regexValue})\\s*[\\r\\n]+\\s*${escapedLabel}`, 'i');
+            const regexB = new RegExp(`${escapedLabel}\\s*[\\:\\s]*[\\r\\n]+\\s*(${regexValue})`, 'i');
+            const matchA = text.match(regexA);
+            if (matchA) return matchA[1].trim();
+            const matchB = text.match(regexB);
+            if (matchB) return matchB[1].trim();
+            return null;
+        };
+
+        const countRegex = '[\\d,.]+[KkMmBb]?[+]?';
+        const rankRegex = '#?[\\d,.]+(?:st|nd|rd|th)?';
+        const moneyRegex = '\\$?[\\d,.]+[KkMmBb]?(?:\\s*[-]\\s*\\$?[\\d,.]+[KkMmBb]?)?';
+
+        const result = {
+            grade: pickValue(pageData.bodyText, 'Grade', '[A-F][+-]{0,2}'),
+            sbRank: pickValue(pageData.bodyText, 'SB Rank', rankRegex),
+            subRank: pickValue(pageData.bodyText, 'Subscribers? Rank', rankRegex),
+            monthlyEarnings: pickValue(pageData.bodyText, 'Monthly Estimated Earnings', moneyRegex),
+            last30DayViews: pickValue(pageData.bodyText, 'Views for the last 30 days', countRegex),
+            source: 'Social Blade'
+        };
+
+        if (!result.grade) {
+            console.log("  ⚠️ Scraper: Found page but couldn't parse metrics");
+            return null;
+        }
+
+        console.log(`  ✅ Scraper: Success (Grade: ${result.grade})`);
+        return result;
+
+    } catch (e) {
+        console.error("  ❌ Scraper Crash:", e.message);
+        if (browser) await browser.close().catch(() => { });
+        return null;
+    }
+}
+
+app.post('/api/youtube/strategy', async (req, res) => {
+    const { handle, competitorHandle } = req.body;
+    if (!handle) return res.status(400).json({ success: false, error: 'Target handle is required' });
+
+    const axios = require('axios');
+    console.log(`🎬 Strategy Generation for ${handle}${competitorHandle ? ` (vs ${competitorHandle})` : ''}`);
+
+    try {
+        // 1. Helper functions (ported from frontend)
+        const fetchChannel = async (h) => {
+            const clean = h.startsWith('@') ? h : `@${h}`;
+            const url = `https://youtube.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&forHandle=${clean}&key=${YOUTUBE_API_KEY}`;
+            const { data } = await axios.get(url);
+            if (!data.items?.length) return null;
+            const ch = data.items[0];
+
+            // Get recent videos
+            const uploadsId = ch.contentDetails.relatedPlaylists.uploads;
+            const { data: vData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsId}&maxResults=20&key=${YOUTUBE_API_KEY}`);
+
+            const recentTitles = vData.items?.map(v => v.snippet.title) || [];
+            const recentIds = vData.items?.map(v => v.snippet.resourceId.videoId) || [];
+
+            let recentViews = 0;
+            if (recentIds.length > 0) {
+                const { data: statsData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/videos?part=statistics&id=${recentIds.join(',')}&key=${YOUTUBE_API_KEY}`);
+                recentViews = statsData.items?.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || 0), 0) || 0;
+            }
+
+            return {
+                title: ch.snippet.title,
+                description: ch.snippet.description,
+                country: ch.snippet.country || "Unknown",
+                subscribers: parseInt(ch.statistics.subscriberCount || 0).toLocaleString(),
+                totalViews: parseInt(ch.statistics.viewCount || 0).toLocaleString(),
+                thirtyDayViews: recentViews,
+                recentVideoTitles: recentTitles
+            };
+        };
+
+        // 2. Fetch Data
+        const [yourData, competitorAnalytics, socialBlade] = await Promise.all([
+            fetchChannel(handle),
+            competitorHandle ? fetchChannel(competitorHandle) : Promise.resolve(null),
+            getSocialBladeData(handle)
+        ]);
+
+        if (!yourData) throw new Error(`Channel ${handle} not found`);
+
+        // 3. Fallback Algorithm if Scraper fails
+        let finalSocialBlade = socialBlade;
+        if (!finalSocialBlade || !finalSocialBlade.grade) {
+            console.log("⚠️ Scraper failed or returned nothing, using backend fallback algorithm");
+            const views = yourData.thirtyDayViews || 0;
+            const subs = parseInt(yourData.subscribers.replace(/,/g, '')) || 0;
+
+            const getGrade = (v) => v > 5000000 ? "A" : v > 1000000 ? "B+" : v > 500000 ? "B" : v > 100000 ? "B-" : "C";
+            const getRank = (s) => s > 1000000 ? "15,000th" : s > 100000 ? "100,000th" : "500,000th+";
+            const getEarnings = (v) => {
+                const low = Math.round((v / 1000) * 1.5);
+                const high = Math.round((v / 1000) * 4.0);
+                return `$${low.toLocaleString()} - $${high.toLocaleString()}`;
+            };
+
+            finalSocialBlade = {
+                grade: getGrade(views),
+                subRank: getRank(subs),
+                monthlyEarnings: getEarnings(views),
+                last30DayViews: views.toLocaleString(),
+                source: 'Backend Algorithm'
+            };
+        }
+
+        const extractKeywords = (titles) => {
+            const words = titles.join(' ').toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length >= 4);
+            const freq = {};
+            words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+            return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+        };
+
+        const kw = extractKeywords(yourData.recentVideoTitles);
+        let verifiedCompetitors = [];
+        if (kw.length > 0) {
+            const { data: searchData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(kw.join(' '))}&type=channel&maxResults=3&key=${YOUTUBE_API_KEY}`);
+            verifiedCompetitors = searchData.items?.map(i => ({ title: i.snippet.title, channelId: i.snippet.channelId })) || [];
+        }
+
+        // 4. Groq Strategy Generation
+        const dataContext = `Target: ${yourData.title} | Subs: ${yourData.subscribers} | Region: ${yourData.country} | Recent: ${yourData.recentVideoTitles.join(', ')}
+        ${competitorAnalytics ? `\nDirect Rival: ${competitorAnalytics.title} | Subs: ${competitorAnalytics.subscribers} | Recent: ${competitorAnalytics.recentVideoTitles.join(', ')}` : ''}
+        ${verifiedCompetitors.length ? `\nTop Niche Rivals: ${verifiedCompetitors.map(c => c.title).join(', ')}` : ''}`;
+
+        const groqRes = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
+            model: "llama-3.3-70b-versatile",
+            messages: [
+                { role: "system", content: "You are a YouTube viral strategist. Output ONLY strict JSON." },
+                { role: "user", content: `Architect 3 viral video concepts based on this data: ${dataContext}. Output JSON format: { "monthlyPerformance": { "performanceVerdict": "..." }, "contentStrategy": { "optimalTimeLimit": "...", "remixedIdeas": [{ "title": "...", "concept": "...", "thumbnailHook": "...", "hookLogic": "..." }] }, "marketAnalysis": { "competitionLevel": "...", "marketGap": "..." }, "audienceDemand": { "topSearchTerms": ["..."], "currentTrend": "..." } }` }
+            ],
+            response_format: { type: "json_object" }
+        }, { headers: { Authorization: `Bearer ${GROQ_API_KEY}` } });
+
+        const strategy = groqRes.data.choices[0].message.content;
+        const parsedStrategy = JSON.parse(strategy);
+        parsedStrategy.marketAnalysis = parsedStrategy.marketAnalysis || {};
+        parsedStrategy.marketAnalysis.verifiedCompetitors = verifiedCompetitors;
 
         res.json({
             success: true,
-            handle: cleanHandle,
-            source: 'Social Blade (Real Browser)',
-            data: {
-                grade: pageData.grade,
-                sbRank: pageData.sbRank,
-                subRank: pageData.subRank,
-                viewsRank: pageData.viewsRank,
-                countryRank: pageData.countryRank,
-                monthlyEarnings: pageData.monthlyEarnings,
-                yearlyEarnings: pageData.yearlyEarnings,
-                last30DaySubs: pageData.last30DaySubs,
-                last30DayViews: pageData.last30DayViews,
-                totalSubs: pageData.totalSubs,
-                totalViews: pageData.totalViews,
-                totalVideos: pageData.totalVideos,
-                _debug: {
-                    pageTitle: pageData.pageTitle,
-                    bodySnippet: pageData._bodySnippet
-                }
-            }
+            channelData: yourData,
+            competitorData: competitorAnalytics,
+            socialBlade: finalSocialBlade,
+            strategy: parsedStrategy
         });
 
-    } catch (error) {
-        console.error('ViewStats Scraper Error:', error.message);
-        if (browser) {
-            try { await browser.close(); } catch (e) { }
-        }
-        res.status(500).json({
-            success: false,
-            error: 'Scraping failed',
-            details: error.message
-        });
+    } catch (err) {
+        console.error("YouTube Strategy Error:", err.message);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
+
 
 
 // ==================== NOWPAYMENTS INTEGRATION ====================
