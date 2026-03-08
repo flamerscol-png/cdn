@@ -1221,6 +1221,17 @@ app.post('/api/payments/callback', async (req, res) => {
     }
 });
 
+// --- DEBUG LOGS ENDPOINT ---
+let serverLogs = [];
+const originalLog = console.log;
+const originalError = console.error;
+console.log = (...args) => { serverLogs.push(`[LOG] ${args.join(' ')}`); if (serverLogs.length > 100) serverLogs.shift(); originalLog(...args); };
+console.error = (...args) => { serverLogs.push(`[ERR] ${args.join(' ')}`); if (serverLogs.length > 100) serverLogs.shift(); originalError(...args); };
+
+app.get('/_debug/logs', (req, res) => {
+    res.type('text/plain').send(serverLogs.join('\n'));
+});
+
 app.listen(PORT, () => {
     console.log(`✅ Keyword Server running on port ${PORT}`);
 });
