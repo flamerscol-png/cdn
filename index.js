@@ -791,8 +791,12 @@ app.get('/api/backlinks', async (req, res) => {
 
 // ==================== VIEWSTATS SCRAPER ENDPOINT (Real Browser - Cloudflare Bypass) ====================
 // ==================== YOUTUBE STRATEGY ENGINE ====================
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_DATA_API_KEY || process.env.YOUTUBE_DATA_API_KEY;
-const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
+const YOUTUBE_API_KEY = (process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_DATA_API_KEY || process.env.YOUTUBE_DATA_API_KEY || "").trim();
+const GROQ_API_KEY = (process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || "").trim();
+
+console.log("🛠️  Backend API Key Check:");
+console.log(`  - YouTube Key: ${YOUTUBE_API_KEY ? "Present (Starts with: " + YOUTUBE_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
+console.log(`  - Groq Key: ${GROQ_API_KEY ? "Present (Starts with: " + GROQ_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
 
 if (!YOUTUBE_API_KEY) console.error("⚠️ WARNING: Missing YouTube API Key in server environment!");
 if (!GROQ_API_KEY) console.error("⚠️ WARNING: Missing Groq API Key in server environment!");
