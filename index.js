@@ -812,80 +812,137 @@ async function getSocialBladeData(handle) {
     const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
     const { connect } = require('puppeteer-real-browser');
     let browser = null;
-    try {
-        console.log(`  🚀 Scraper: Launching Real Browser for ${handle}...`);
-        const connectOptions = {
-            headless: 'auto',
-            turnstile: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-            customConfig: {},
-            connectOption: {
-                defaultViewport: null,
-                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
-            },
-        };
+    let retries = 2; // Try up to 3 times total
 
-        const response = await connect(connectOptions);
-        browser = response.browser;
-        const page = response.page;
-        const sbUrl = `https://socialblade.com/youtube/${cleanHandle}`;
+    while (retries >= 0) {
+        try {
+            console.log(`  🚀 Scraper: Launching Real Browser for ${handle} (Retries left: ${retries})...`);
+            const connectOptions = {
+                headless: 'auto',
+                turnstile: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+                customConfig: {},
+                connectOption: {
+                    defaultViewport: null,
+                    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
+                },
+            };
 
-        console.log(`  🌐 Scraper: Navigating to ${sbUrl}`);
-        await page.goto(sbUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            const response = await connect(connectOptions);
+            browser = response.browser;
+            const page = response.page;
+            const sbUrl = `https://socialblade.com/youtube/${cleanHandle}`;
 
-        // Wait for potential Cloudflare challenge
-        await new Promise(r => setTimeout(r, 10000));
+            console.log(`  🌐 Scraper: Navigating to ${sbUrl}`);
+            await page.goto(sbUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
-        const pageData = await page.evaluate(() => {
-            const bodyText = document.body.innerText;
-            const title = document.title;
-            return { bodyText, title };
-        });
+            // Wait for potential Cloudflare challenge
+            await new Promise(r => setTimeout(r, 12000));
 
-        await browser.close();
+            // Human-like interaction: mouse move
+            try {
+                await page.mouse.move(Math.random() * 500, Math.random() * 500);
+            } catch (e) { }
 
-        if (pageData.title.includes('Just a moment') || pageData.title.includes('Cloudflare')) {
-            console.log("  ❌ Scraper: Blocked by Cloudflare");
-            return null;
+            const pageData = await page.evaluate(() => {
+                const title = document.title;
+                const bodyText = document.body.innerText;
+                const html = document.body.innerHTML;
+
+                // Function to find value near label using XPath-like matching in JS
+                const getStat = (label) => {
+                    const ps = Array.from(document.querySelectorAll('p, span, div, h3'));
+                    const target = ps.find(p => p.innerText.trim().includes(label));
+                    if (!target) return null;
+
+                    // Social Blade often puts stats in following-sibling or child
+                    if (target.nextElementSibling) return target.nextElementSibling.innerText.trim();
+                    if (target.parentElement && target.parentElement.innerText.includes('\n')) {
+                        const parts = target.parentElement.innerText.split('\n');
+                        const idx = parts.findIndex(p => p.includes(label));
+                        return parts[idx + 1] || parts[idx - 1] || null;
+                    }
+                    return null;
+                };
+
+                // Specialized for Ranks (which have values BEFORE labels sometimes)
+                const getRank = (label) => {
+                    const ps = Array.from(document.querySelectorAll('p, span'));
+                    const target = ps.find(p => p.innerText.trim().includes(label));
+                    if (!target) return null;
+                    if (target.previousElementSibling) return target.previousElementSibling.innerText.trim();
+                    return null;
+                };
+
+                // Money Extraction (H2s near H3s)
+                const getEarnings = (label) => {
+                    const h3s = Array.from(document.querySelectorAll('h3'));
+                    const target = h3s.find(h => h.innerText.trim().includes(label));
+                    if (!target) return null;
+                    if (target.previousElementSibling) return target.previousElementSibling.innerText.trim();
+                    return null;
+                };
+
+                return {
+                    title,
+                    bodyText,
+                    uploads: getStat('Uploads'),
+                    subscribers: getStat('Subscribers'),
+                    videoViews: getStat('Video Views'),
+                    country: getStat('Country'),
+                    channelType: getStat('Channel Type'),
+                    userCreated: getStat('User Created'),
+                    sbRank: getRank('SB Rank'),
+                    subRank: getRank('Subscribers Rank'),
+                    viewRank: getRank('Video Views Rank'),
+                    monthlyEarnings: getEarnings('Monthly Estimated Earnings'),
+                    yearlyEarnings: getEarnings('Yearly Estimated Earnings'),
+                    last30DayViews: getStat('Video Views for the last 30 days') || getStat('Views for the last 30 days')
+                };
+            });
+
+            await browser.close();
+            browser = null;
+
+            if (pageData.title.includes('Just a moment') || pageData.title.includes('Cloudflare')) {
+                console.log("  ❌ Scraper: Blocked by Cloudflare challenge");
+                retries--;
+                continue;
+            }
+
+            // Cleanup results
+            const result = {
+                grade: (pageData.bodyText.match(/Grade\s+([A-F][+-]{0,2})/i) || [, "C"])[1],
+                uploads: pageData.uploads,
+                country: pageData.country,
+                channelType: pageData.channelType,
+                userCreated: pageData.userCreated,
+                sbRank: pageData.sbRank,
+                subRank: pageData.subRank,
+                viewRank: pageData.viewRank,
+                monthlyEarnings: pageData.monthlyEarnings,
+                yearlyEarnings: pageData.yearlyEarnings,
+                last30DayViews: pageData.last30DayViews,
+                source: 'Social Blade (Real Browser)'
+            };
+
+            if (!result.sbRank && !result.monthlyEarnings) {
+                console.log("  ⚠️ Scraper: Found page but content parsing failed. Retrying...");
+                retries--;
+                continue;
+            }
+
+            console.log(`  ✅ Scraper: Success (Monthly: ${result.monthlyEarnings})`);
+            return result;
+
+        } catch (e) {
+            console.error("  ❌ Scraper Error:", e.message);
+            if (browser) await browser.close().catch(() => { });
+            browser = null;
+            retries--;
         }
-
-        const pickValue = (text, label, regexValue) => {
-            const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regexA = new RegExp(`(${regexValue})\\s*[\\r\\n]+\\s*${escapedLabel}`, 'i');
-            const regexB = new RegExp(`${escapedLabel}\\s*[\\:\\s]*[\\r\\n]+\\s*(${regexValue})`, 'i');
-            const matchA = text.match(regexA);
-            if (matchA) return matchA[1].trim();
-            const matchB = text.match(regexB);
-            if (matchB) return matchB[1].trim();
-            return null;
-        };
-
-        const countRegex = '[\\d,.]+[KkMmBb]?[+]?';
-        const rankRegex = '#?[\\d,.]+(?:st|nd|rd|th)?';
-        const moneyRegex = '\\$?[\\d,.]+[KkMmBb]?(?:\\s*[-]\\s*\\$?[\\d,.]+[KkMmBb]?)?';
-
-        const result = {
-            grade: pickValue(pageData.bodyText, 'Grade', '[A-F][+-]{0,2}'),
-            sbRank: pickValue(pageData.bodyText, 'SB Rank', rankRegex),
-            subRank: pickValue(pageData.bodyText, 'Subscribers? Rank', rankRegex),
-            monthlyEarnings: pickValue(pageData.bodyText, 'Monthly Estimated Earnings', moneyRegex),
-            last30DayViews: pickValue(pageData.bodyText, 'Views for the last 30 days', countRegex),
-            source: 'Social Blade'
-        };
-
-        if (!result.grade) {
-            console.log("  ⚠️ Scraper: Found page but couldn't parse metrics");
-            return null;
-        }
-
-        console.log(`  ✅ Scraper: Success (Grade: ${result.grade})`);
-        return result;
-
-    } catch (e) {
-        console.error("  ❌ Scraper Crash:", e.message);
-        if (browser) await browser.close().catch(() => { });
-        return null;
     }
+    return null;
 }
 
 app.post('/api/youtube/strategy', async (req, res) => {
