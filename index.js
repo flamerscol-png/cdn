@@ -7,6 +7,11 @@ const puppeteer = require('puppeteer');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+console.log("🚀 Server Starting...");
+console.log(`📂 Working Directory: ${process.cwd()}`);
+console.log(`🔧 Puppeteer Executable Path (ENV): ${process.env.PUPPETEER_EXECUTABLE_PATH || 'Not Set'}`);
+console.log(`🔧 Node Version: ${process.version}`);
+
 // Initialize Firebase Admin (Optional: Required for auto-credits)
 let admin, db;
 try {
