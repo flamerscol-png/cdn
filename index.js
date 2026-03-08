@@ -1041,6 +1041,48 @@ async function getSocialBladeData(handle) {
                     return null;
                 };
 
+                // Extract comparative metrics using a structured DOM walk
+                const extractComparison = () => {
+                    // Look for pill spans typically containing SVG arrows
+                    // ViewStats usually uses CSS classes with 'red' or 'green' or child SVGs
+                    // Since it's tricky, let's find the card explicitly:
+                    const blocks = Array.from(document.querySelectorAll('div'));
+                    for (const block of blocks) {
+                        const t = block.innerText;
+                        if (t && t.includes('VIEWS') && t.includes('LAST 28 DAYS')) {
+                            // Find the pill-like element
+                            // It usually contains an SVG and text
+                            const spans = Array.from(block.querySelectorAll('span, div'));
+                            for (const span of spans) {
+                                const spanText = span.innerText;
+                                if (spanText && /^\s*\d+(\.\d+)?[KM]?\s*$/.test(spanText)) {
+                                    // Might be the pill. Let's look for SVG siblings or children
+                                    const hasSvg = span.querySelector('svg') || (span.parentElement && span.parentElement.querySelector('svg'));
+                                    if (hasSvg) {
+                                        // Let's grab the HTML to see arrow direction
+                                        const html = (span.parentElement || span).innerHTML;
+                                        const isDown = html.includes('rotate(180)') || html.includes('down') || span.className.includes('red');
+                                        return (isDown ? '-' : '+') + spanText.trim();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Fallback to text reading if specific markup fails
+                    const lines = document.body.innerText.split('\n').map(l => l.trim()).filter(l => l);
+                    const momIdx = lines.findIndex(l => l.toUpperCase() === 'MONTH TO MONTH');
+                    if (momIdx >= 0) {
+                        // lines usually: Month to Month, Views, Subscribers, 3B, 709M (22.5%)
+                        for (let i = momIdx; i < lines.length; i++) {
+                            if (lines[i].includes('(') && lines[i].includes('%')) {
+                                return lines[i]; // E.g., "709M (22.5%)"
+                            }
+                        }
+                    }
+                    return null;
+                };
+
                 return {
                     title,
                     bodyText,
@@ -1055,7 +1097,8 @@ async function getSocialBladeData(handle) {
                     viewRank: getRank('Video Views Rank'),
                     monthlyEarnings: getEarnings('Monthly Estimated Earnings'),
                     yearlyEarnings: getEarnings('Yearly Estimated Earnings'),
-                    last30DayViews: getStat('Video Views for the last 30 days') || getStat('Views for the last 30 days')
+                    last30DayViews: getStat('VIEWS') || getStat('Video Views for the last 30 days') || getStat('Views for the last 30 days'),
+                    viewsComparison: extractComparison()
                 };
             });
 
@@ -1081,10 +1124,11 @@ async function getSocialBladeData(handle) {
                 monthlyEarnings: pageData.monthlyEarnings,
                 yearlyEarnings: pageData.yearlyEarnings,
                 last30DayViews: pageData.last30DayViews,
-                source: 'Social Blade (Real Browser)'
+                viewsComparison: pageData.viewsComparison,
+                source: 'Premium Analytics Tracker'
             };
 
-            if (!result.sbRank && !result.monthlyEarnings) {
+            if (!result.last30DayViews && !result.monthlyEarnings) {
                 console.log("  ⚠️ Scraper: Found page but content parsing failed. Retrying...");
                 retries--;
                 continue;
@@ -1172,6 +1216,7 @@ app.post('/api/youtube/strategy', async (req, res) => {
                 subRank: getRank(subs),
                 monthlyEarnings: getEarnings(views),
                 last30DayViews: views.toLocaleString(),
+                viewsComparison: 'N/A',
                 source: 'Backend Fallback'
             };
         }
@@ -1183,6 +1228,7 @@ app.post('/api/youtube/strategy', async (req, res) => {
             TARGET CHANNEL (${yourData.title}):
             - Subs: ${yourData.subscribers}
             - 30d Views: ${yourData.thirtyDayViews}
+            - MoM View Comparison: ${finalAnalytics.viewsComparison || 'N/A'}
             - Analytics Source: ${finalAnalytics.source}
             - Estimated Monthly Earnings: ${finalAnalytics.monthlyEarnings}
             - Channel Type: ${finalAnalytics.channelType || 'YouTube'}
