@@ -1208,7 +1208,7 @@ app.post('/api/youtube/strategy', async (req, res) => {
         if (!GROQ_API_KEY) throw new Error("Missing GROQ_API_KEY");
 
         const groqResponse = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: 'llama3-70b-8192',
+            model: 'llama-3.3-70b-versatile',
             messages: [
                 { role: 'system', content: 'You are a YouTube viral strategist. Output ONLY strict JSON.' },
                 { role: 'user', content: prompt }
