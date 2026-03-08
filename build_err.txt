@@ -1,0 +1,82 @@
+﻿
+> flamercoal@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 27 modules transformed.
+node.exe : [31mΓ£ù[39m 
+Build failed in 446ms
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          : 
+Not    Specified: 
+([31mΓ£ù[39m Bui    ld 
+failed in 446ms:String) []    
+, RemoteException
+    + FullyQualifiedErrorId : 
+Nat    iveCommandError
+ 
+[31merror during build:
+[31m[commonjs--resolver] 
+Missing "./vertexai-web" 
+specifier in "firebase" 
+package[31m
+    at e (file:///C:/Users/VAN
+SH%20SINGH/projects/main%20web
+site%203/node_modules/vite/dis
+t/node/chunks/config.js:6651:8
+)
+    at n (file:///C:/Users/VAN
+SH%20SINGH/projects/main%20web
+site%203/node_modules/vite/dis
+t/node/chunks/config.js:6663:1
+4)
+    at o (file:///C:/Users/VAN
+SH%20SINGH/projects/main%20web
+site%203/node_modules/vite/dis
+t/node/chunks/config.js:6691:1
+0)
+    at 
+resolveExportsOrImports (file:
+///C:/Users/VANSH%20SINGH/proj
+ects/main%20website%203/node_m
+odules/vite/dist/node/chunks/c
+onfig.js:32827:45)
+    at resolveDeepImport (file
+:///C:/Users/VANSH%20SINGH/pro
+jects/main%20website%203/node_
+modules/vite/dist/node/chunks/
+config.js:32841:22)
+    at tryNodeResolve (file://
+/C:/Users/VANSH%20SINGH/projec
+ts/main%20website%203/node_mod
+ules/vite/dist/node/chunks/con
+fig.js:32716:70)
+    at Object.handler (file://
+/C:/Users/VANSH%20SINGH/projec
+ts/main%20website%203/node_mod
+ules/vite/dist/node/chunks/con
+fig.js:32555:16)
+    at Object.handler (file://
+/C:/Users/VANSH%20SINGH/projec
+ts/main%20website%203/node_mod
+ules/vite/dist/node/chunks/con
+fig.js:33706:13)
+    at file:///C:/Users/VANSH%
+20SINGH/projects/main%20websit
+e%203/node_modules/rollup/dist
+/es/shared/node-entry.js:22548
+:40
+    at async PluginDriver.hook
+FirstAndGetPlugin (file:///C:/
+Users/VANSH%20SINGH/projects/m
+ain%20website%203/node_modules
+/rollup/dist/es/shared/node-en
+try.js:22430:28)[39m

@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  --brand-blaze: #ff4d00;
+  --bg-dark: #0a0a0a;
+  --bg-darker: #050505;
+  --bg-surface: #121212;
+  --bg-surface-hover: #1a1a1a;
+  --border-subtle: rgba(255, 77, 0, 0.1);
+  --text-muted: #888888;
+}
+
+/* Global Styles */
+body {
+  background-color: var(--bg-dark);
+  color: #ffffff;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Modrinth-style Utilities */
+.modrinth-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.modrinth-card:hover {
+  transform: translateY(-2px);
+  background-color: var(--bg-surface-hover);
+  border-color: rgba(255, 77, 0, 0.3);
+}
+
+.btn-primary {
+  background-color: var(--brand-blaze);
+  color: white;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  transition: filter 0.2s ease, transform 0.1s active;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.text-brand {
+  color: var(--brand-green);
+}
