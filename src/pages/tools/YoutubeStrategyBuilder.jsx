@@ -195,7 +195,14 @@ const YoutubeStrategyBuilder = () => {
                                 </div>
                                 <div className="bg-[#111] border border-white/10 rounded-xl p-4">
                                     <h4 className="text-[#ff0000] text-[10px] uppercase mb-1">30-Day Views</h4>
-                                    <h3 className="text-xl font-black text-[#ff0000]">{socialBladeData?.last30DayViews || liveData.yours.thirtyDayViews.toLocaleString()}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xl font-black text-[#ff0000]">{socialBladeData?.last30DayViews || liveData.yours.thirtyDayViews.toLocaleString()}</h3>
+                                        {socialBladeData?.viewsComparison && socialBladeData.viewsComparison !== 'N/A' && (
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${socialBladeData.viewsComparison.startsWith('+') ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
+                                                {socialBladeData.viewsComparison.startsWith('-') ? '▼' : '▲'} {socialBladeData.viewsComparison.replace(/[+-]/, '')}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="bg-[#111] border border-white/10 rounded-xl p-4 border-l-4 border-l-green-500">
                                     <h4 className="text-green-500 text-[10px] uppercase mb-1">Grade</h4>
@@ -215,7 +222,7 @@ const YoutubeStrategyBuilder = () => {
                                         <div className="flex justify-between items-start mb-2">
                                             <h4 className="text-green-500 text-xs font-bold uppercase"><FaChartBar /> Est. Earnings</h4>
                                             {socialBladeData?.source && (
-                                                <span className={`text-[8px] px-1.5 py-0.5 rounded border uppercase font-black ${socialBladeData.source === 'Social Blade' ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-amber-500/10 border-amber-500/30 text-amber-500'}`}>
+                                                <span className={`text-[8px] px-1.5 py-0.5 rounded border uppercase font-black ${socialBladeData.source.toLowerCase().includes('viewstats') ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-amber-500/10 border-amber-500/30 text-amber-500'}`}>
                                                     {socialBladeData.source}
                                                 </span>
                                             )}
@@ -237,10 +244,10 @@ const YoutubeStrategyBuilder = () => {
                                         <div className="flex items-center justify-between border-b border-white/5 pb-4">
                                             <h4 className="text-white font-black flex items-center gap-2 tracking-tight uppercase text-sm">
                                                 <span className="p-1.5 bg-[#ff0000]/10 rounded-lg text-[#ff0000]"><FaChartBar /></span>
-                                                Social Blade Deep Dive
+                                                Premium Analytics Deep Dive
                                             </h4>
                                             <span className="text-[10px] bg-white/5 text-gray-400 px-2 py-1 rounded-full font-bold uppercase tracking-widest border border-white/5">
-                                                Realtime Chromium Extraction
+                                                Powered by ViewStats
                                             </span>
                                         </div>
 
@@ -250,8 +257,8 @@ const YoutubeStrategyBuilder = () => {
                                                 { label: "Country", value: socialBladeData.country },
                                                 { label: "Channel Type", value: socialBladeData.channelType },
                                                 { label: "Created", value: socialBladeData.userCreated },
-                                                { label: "SB Rank", value: socialBladeData.sbRank },
-                                                { label: "View Rank", value: socialBladeData.viewRank },
+                                                { label: "Sub Rank", value: socialBladeData.subRank },
+                                                { label: "View Rank", value: socialBladeData.sbRank },
                                             ].map((item, idx) => (
                                                 <div key={idx} className="flex flex-col gap-1">
                                                     <p className="text-[#ff0000] text-[9px] font-black uppercase tracking-tighter">{item.label}</p>
