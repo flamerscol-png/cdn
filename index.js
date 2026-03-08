@@ -1010,7 +1010,13 @@ app.post('/api/youtube/strategy', async (req, res) => {
         res.status(500).json({
             success: false,
             error: errorMsg,
-            details: err.response?.data || null
+            details: err.response?.data || null,
+            _debug: {
+                ytKeySet: !!YOUTUBE_API_KEY,
+                ytKeyStart: YOUTUBE_API_KEY ? YOUTUBE_API_KEY.substring(0, 5) : "NONE",
+                groqKeySet: !!GROQ_API_KEY,
+                groqKeyStart: GROQ_API_KEY ? GROQ_API_KEY.substring(0, 5) : "NONE"
+            }
         });
     }
 });
