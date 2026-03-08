@@ -999,8 +999,15 @@ app.post('/api/youtube/strategy', async (req, res) => {
         });
 
     } catch (err) {
-        console.error("YouTube Strategy Error:", err.message);
-        res.status(500).json({ success: false, error: err.message });
+        const errorMsg = err.response?.data?.error?.message || err.message;
+        console.error("YouTube Strategy Error:", errorMsg);
+        if (err.response?.data) console.error("Details:", JSON.stringify(err.response.data));
+
+        res.status(500).json({
+            success: false,
+            error: errorMsg,
+            details: err.response?.data || null
+        });
     }
 });
 
