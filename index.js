@@ -818,8 +818,10 @@ async function getSocialBladeData(handle) {
         try {
             console.log(`  🚀 Scraper: Launching Real Browser for ${handle} (Retries left: ${retries})...`);
 
-            const exePath = process.env.PUPPETEER_EXECUTABLE_PATH || null;
-            console.log(`  🔍 Scraper Info: Executable Path: ${exePath || 'Default'}`);
+            const puppeteer = require('puppeteer');
+            const defaultExePath = puppeteer.executablePath();
+            const exePath = process.env.PUPPETEER_EXECUTABLE_PATH || defaultExePath;
+            console.log(`  🔍 Scraper Info: Default Exe: ${defaultExePath} | Using Exe: ${exePath}`);
 
             const connectOptions = {
                 headless: 'auto',
