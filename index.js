@@ -1041,6 +1041,36 @@ async function getSocialBladeData(handle) {
                     return null;
                 };
 
+                const getSplit = () => {
+                    const lines = document.body.innerText.split('\n').map(l => l.trim()).filter(l => l);
+                    const splitIdx = lines.findIndex(l => l.toUpperCase() === 'LONGS VS SHORTS');
+                    if (splitIdx >= 0) {
+                        try {
+                            let shortsPct = null;
+                            let longsPct = null;
+                            for (let i = splitIdx; i < splitIdx + 15; i++) {
+                                if (!lines[i]) continue;
+                                if (lines[i].includes('%') && !shortsPct) shortsPct = lines[i];
+                                else if (lines[i].includes('%') && shortsPct && !longsPct) longsPct = lines[i];
+                            }
+                            if (shortsPct && longsPct) {
+                                return "Shorts: " + shortsPct + " | Longs: " + longsPct;
+                            }
+                        } catch (e) { }
+                    }
+                    return null;
+                };
+
+                const getAverages = () => {
+                    const lines = document.body.innerText.split('\n').map(l => l.trim()).filter(l => l);
+                    const daily = lines.findIndex(l => l.toUpperCase() === 'DAILY AVG');
+                    const weekly = lines.findIndex(l => l.toUpperCase() === 'WEEKLY AVG');
+                    return {
+                        dailyViews: daily >= 0 ? lines[daily + 1] : null,
+                        weeklyViews: weekly >= 0 ? lines[weekly + 1] : null
+                    };
+                };
+
                 // Extract comparative metrics using a structured DOM walk
                 const extractComparison = () => {
                     // Look for pill spans typically containing SVG arrows
@@ -1087,7 +1117,8 @@ async function getSocialBladeData(handle) {
                     title,
                     bodyText,
                     uploads: getStat('Uploads'),
-                    subscribers: getStat('Subscribers'),
+                    totalSubscribers: lines[lines.findIndex(l => l === 'Subs') + 1] || getStat('Subscribers'),
+                    subscribersLast30Days: getStat('SUBS') || getStat('Subscribers for the last 30 days'),
                     videoViews: getStat('Video Views'),
                     country: getStat('Country'),
                     channelType: getStat('Channel Type'),
@@ -1098,7 +1129,9 @@ async function getSocialBladeData(handle) {
                     monthlyEarnings: getEarnings('Monthly Estimated Earnings'),
                     yearlyEarnings: getEarnings('Yearly Estimated Earnings'),
                     last30DayViews: getStat('VIEWS') || getStat('Video Views for the last 30 days') || getStat('Views for the last 30 days'),
-                    viewsComparison: extractComparison()
+                    viewsComparison: extractComparison(),
+                    shortsVsLongs: getSplit(),
+                    averages: getAverages()
                 };
             });
 
@@ -1125,6 +1158,9 @@ async function getSocialBladeData(handle) {
                 yearlyEarnings: pageData.yearlyEarnings,
                 last30DayViews: pageData.last30DayViews,
                 viewsComparison: pageData.viewsComparison,
+                shortsVsLongs: pageData.shortsVsLongs,
+                averages: pageData.averages,
+                subscribersLast30Days: pageData.subscribersLast30Days,
                 source: 'Premium Analytics Tracker'
             };
 
@@ -1134,7 +1170,7 @@ async function getSocialBladeData(handle) {
                 continue;
             }
 
-            console.log(`  ✅ Scraper: Success (Monthly: ${result.monthlyEarnings})`);
+            console.log(`  ✅ Scraper: Success(Monthly: ${result.monthlyEarnings})`);
             return result;
 
         } catch (e) {
@@ -1152,12 +1188,12 @@ app.post('/api/youtube/strategy', async (req, res) => {
     if (!handle) return res.status(400).json({ success: false, error: 'Target handle is required' });
 
     const axios = require('axios');
-    console.log(`🎬 Strategy Generation for ${handle}${competitorHandle ? ` (vs ${competitorHandle})` : ''}`);
+    console.log(`🎬 Strategy Generation for ${handle}${competitorHandle ? ` (vs ${competitorHandle})` : ''} `);
 
     try {
         // 1. Helper functions (ported from frontend)
         const fetchChannel = async (h) => {
-            const clean = h.startsWith('@') ? h : `@${h}`;
+            const clean = h.startsWith('@') ? h : `@${h} `;
             const url = `https://youtube.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&forHandle=${clean}&key=${YOUTUBE_API_KEY}`;
             const { data } = await axios.get(url);
             if (!data.items?.length) return null;
@@ -1227,8 +1263,12 @@ app.post('/api/youtube/strategy', async (req, res) => {
             
             TARGET CHANNEL (${yourData.title}):
             - Subs: ${yourData.subscribers}
+            - 30d Subs Gained: ${finalAnalytics.subscribersLast30Days || 'N/A'}
             - 30d Views: ${yourData.thirtyDayViews}
             - MoM View Comparison: ${finalAnalytics.viewsComparison || 'N/A'}
+            - Content Format Split (Shorts/Longs): ${finalAnalytics.shortsVsLongs || 'N/A'}
+            - Daily Avg Views: ${finalAnalytics.averages?.dailyViews || 'N/A'}
+            - Weekly Avg Views: ${finalAnalytics.averages?.weeklyViews || 'N/A'}
             - Analytics Source: ${finalAnalytics.source}
             - Estimated Monthly Earnings: ${finalAnalytics.monthlyEarnings}
             - Channel Type: ${finalAnalytics.channelType || 'YouTube'}
