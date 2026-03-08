@@ -812,6 +812,130 @@ app.get('/api/keep-alive', (req, res) => {
     res.status(200).send('Backend is awake and ready');
 });
 
+// ─── ROBUST VIEWSTATS SCRAPER ───
+async function getViewStatsData(handle) {
+    const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
+    const { connect } = require('puppeteer-real-browser');
+    let browser = null;
+    let retries = 2;
+
+    while (retries >= 0) {
+        try {
+            console.log(`  🚀 Scraper: Launching Real Browser for ${handle} (ViewStats)...`);
+            const puppeteer = require('puppeteer');
+            const defaultExePath = puppeteer.executablePath();
+            const exePath = process.env.PUPPETEER_EXECUTABLE_PATH || defaultExePath;
+            console.log(`  🔍 Scraper Info: Default Exe: ${defaultExePath} | Using Exe: ${exePath}`);
+
+            const connectOptions = {
+                headless: 'auto',
+                turnstile: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+                customConfig: {},
+                connectOption: {
+                    defaultViewport: null,
+                    executablePath: exePath
+                },
+            };
+
+            let response;
+            try {
+                response = await connect(connectOptions);
+            } catch (launchError) {
+                console.error("  ❌ Real Browser Launch Failed:", launchError.message);
+                const puppeteerExtra = require('puppeteer-extra');
+                const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+                if (!puppeteerExtra.getPlugins().some(p => p.name === 'stealth')) puppeteerExtra.use(StealthPlugin());
+
+                const browserInstance = await puppeteerExtra.launch({
+                    headless: true,
+                    executablePath: exePath,
+                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                });
+                const pageInstance = await browserInstance.newPage();
+                response = { browser: browserInstance, page: pageInstance };
+            }
+
+            browser = response.browser;
+            const page = response.page;
+            const vsUrl = `https://www.viewstats.com/channels/${cleanHandle}`;
+
+            console.log(`  🌐 Scraper: Navigating to ${vsUrl}`);
+            await page.goto(vsUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+            await new Promise(r => setTimeout(r, 12000));
+
+            const pageData = await page.evaluate(() => {
+                const title = document.title;
+                const text = document.body.innerText;
+
+                // Helper to find stats in the grid
+                const findStat = (label) => {
+                    const divs = Array.from(document.querySelectorAll('div'));
+                    const target = divs.find(d => d.innerText.trim() === label);
+                    if (target && target.nextElementSibling) return target.nextElementSibling.innerText.trim();
+                    if (target && target.parentElement) {
+                        const siblings = Array.from(target.parentElement.children);
+                        const idx = siblings.indexOf(target);
+                        return siblings[idx + 1]?.innerText.trim() || null;
+                    }
+                    return null;
+                };
+
+                return {
+                    title,
+                    subs28d: findStat('Subscribers') || findStat('Subs Change'),
+                    views28d: findStat('Views (Last 28 Days)') || findStat('Views Change'),
+                    earningsMonthly: findStat('Estimated Earnings') || findStat('Monthly Estimated Earnings'),
+                    uploads: findStat('Uploads'),
+                    country: findStat('Country'),
+                    channelType: findStat('Category') || findStat('Channel Type'),
+                    created: findStat('User Created'),
+                    subRank: findStat('Subscriber Rank'),
+                    viewRank: findStat('Video Views Rank')
+                };
+            });
+
+            await browser.close();
+            browser = null;
+
+            if (pageData.title.includes('Just a moment') || pageData.title.includes('Cloudflare')) {
+                console.log("  ❌ Scraper: Blocked by Cloudflare");
+                retries--;
+                continue;
+            }
+
+            const result = {
+                grade: "A", // ViewStats doesn't show a large letter grade like SB
+                uploads: pageData.uploads,
+                country: pageData.country,
+                channelType: pageData.channelType,
+                userCreated: pageData.created,
+                sbRank: pageData.viewRank, // Mapping ViewStats rank to our existing field
+                subRank: pageData.subRank,
+                monthlyEarnings: pageData.earningsMonthly,
+                last30DayViews: pageData.views28d,
+                source: 'ViewStats'
+            };
+
+            if (!result.monthlyEarnings && !result.last30DayViews) {
+                console.log("  ⚠️ Scraper: Content parsing failed. Retrying...");
+                retries--;
+                continue;
+            }
+
+            console.log(`  ✅ Scraper: Success (Source: ViewStats)`);
+            return result;
+
+        } catch (e) {
+            console.error("  ❌ Scraper Error:", e.message);
+            if (browser) await browser.close().catch(() => { });
+            browser = null;
+            retries--;
+        }
+    }
+    return null;
+}
+
 // ─── ROBUST SOCIAL BLADE SCRAPER ───
 async function getSocialBladeData(handle) {
     const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
@@ -1020,17 +1144,17 @@ app.post('/api/youtube/strategy', async (req, res) => {
         };
 
         // 2. Fetch Data
-        const [yourData, competitorAnalytics, socialBlade] = await Promise.all([
+        const [yourData, competitorAnalytics, viewStats] = await Promise.all([
             fetchChannel(handle),
             competitorHandle ? fetchChannel(competitorHandle) : Promise.resolve(null),
-            getSocialBladeData(handle)
+            getViewStatsData(handle)
         ]);
 
         if (!yourData) throw new Error(`Channel ${handle} not found`);
 
         // 3. Fallback Algorithm if Scraper fails
-        let finalSocialBlade = socialBlade;
-        if (!finalSocialBlade || !finalSocialBlade.grade) {
+        let finalAnalytics = viewStats;
+        if (!finalAnalytics || !finalAnalytics.monthlyEarnings) {
             console.log("⚠️ Scraper failed or returned nothing, using backend fallback algorithm");
             const views = yourData.thirtyDayViews || 0;
             const subs = parseInt(yourData.subscribers.replace(/,/g, '')) || 0;
@@ -1043,53 +1167,65 @@ app.post('/api/youtube/strategy', async (req, res) => {
                 return `$${low.toLocaleString()} - $${high.toLocaleString()}`;
             };
 
-            finalSocialBlade = {
+            finalAnalytics = {
                 grade: getGrade(views),
                 subRank: getRank(subs),
                 monthlyEarnings: getEarnings(views),
                 last30DayViews: views.toLocaleString(),
-                source: 'Backend Algorithm'
+                source: 'Backend Fallback'
             };
         }
 
-        const extractKeywords = (titles) => {
-            const words = titles.join(' ').toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length >= 4);
-            const freq = {};
-            words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-            return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
-        };
+        // 4. Generate Strategy with AI (Groq)
+        const prompt = `
+            Act as a YouTube Growth Strategist. Analyze these two channels and provide a detailed growth strategy in JSON format.
+            
+            TARGET CHANNEL (${yourData.title}):
+            - Subs: ${yourData.subscribers}
+            - 30d Views: ${yourData.thirtyDayViews}
+            - Analytics Source: ${finalAnalytics.source}
+            - Estimated Monthly Earnings: ${finalAnalytics.monthlyEarnings}
+            - Channel Type: ${finalAnalytics.channelType || 'YouTube'}
+            - Recent Content: ${yourData.recentVideoTitles.join(', ')}
+            
+            ${competitorAnalytics ? `COMPETITOR CHANNEL (${competitorAnalytics.title}):
+            - Subs: ${competitorAnalytics.subscribers}
+            - 30d Views: ${competitorAnalytics.thirtyDayViews}
+            - Recent Content: ${competitorAnalytics.recentVideoTitles.join(', ')}` : ''}
 
-        const kw = extractKeywords(yourData.recentVideoTitles);
-        let verifiedCompetitors = [];
-        if (kw.length > 0) {
-            const { data: searchData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(kw.join(' '))}&type=channel&maxResults=3&key=${YOUTUBE_API_KEY}`);
-            verifiedCompetitors = searchData.items?.map(i => ({ title: i.snippet.title, channelId: i.snippet.channelId })) || [];
-        }
+            Output ONLY this JSON structure:
+            {
+                "monthlyPerformance": { "performanceVerdict": "..." },
+                "contentStrategy": { 
+                    "optimalTimeLimit": "...", 
+                    "remixedIdeas": [{ "title": "...", "concept": "...", "thumbnailHook": "...", "hookLogic": "..." }] 
+                },
+                "marketAnalysis": { "competitionLevel": "...", "marketGap": "..." },
+                "audienceDemand": { "topSearchTerms": ["..."], "currentTrend": "..." }
+            }
+        `;
 
-        // 4. Groq Strategy Generation
-        const dataContext = `Target: ${yourData.title} | Subs: ${yourData.subscribers} | Region: ${yourData.country} | Recent: ${yourData.recentVideoTitles.join(', ')}
-        ${competitorAnalytics ? `\nDirect Rival: ${competitorAnalytics.title} | Subs: ${competitorAnalytics.subscribers} | Recent: ${competitorAnalytics.recentVideoTitles.join(', ')}` : ''}
-        ${verifiedCompetitors.length ? `\nTop Niche Rivals: ${verifiedCompetitors.map(c => c.title).join(', ')}` : ''}`;
+        if (!GROQ_API_KEY) throw new Error("Missing GROQ_API_KEY");
 
-        const groqRes = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
-            model: "llama-3.3-70b-versatile",
+        const groqResponse = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+            model: 'llama3-70b-8192',
             messages: [
-                { role: "system", content: "You are a YouTube viral strategist. Output ONLY strict JSON." },
-                { role: "user", content: `Architect 3 viral video concepts based on this data: ${dataContext}. Output JSON format: { "monthlyPerformance": { "performanceVerdict": "..." }, "contentStrategy": { "optimalTimeLimit": "...", "remixedIdeas": [{ "title": "...", "concept": "...", "thumbnailHook": "...", "hookLogic": "..." }] }, "marketAnalysis": { "competitionLevel": "...", "marketGap": "..." }, "audienceDemand": { "topSearchTerms": ["..."], "currentTrend": "..." } }` }
+                { role: 'system', content: 'You are a YouTube viral strategist. Output ONLY strict JSON.' },
+                { role: 'user', content: prompt }
             ],
             response_format: { type: "json_object" }
-        }, { headers: { Authorization: `Bearer ${GROQ_API_KEY}` } });
+        }, {
+            headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
+        });
 
-        const strategy = groqRes.data.choices[0].message.content;
-        const parsedStrategy = JSON.parse(strategy);
-        parsedStrategy.marketAnalysis = parsedStrategy.marketAnalysis || {};
-        parsedStrategy.marketAnalysis.verifiedCompetitors = verifiedCompetitors;
+        const strategyRes = groqResponse.data.choices[0].message.content;
+        const parsedStrategy = JSON.parse(strategyRes);
 
         res.json({
             success: true,
             channelData: yourData,
             competitorData: competitorAnalytics,
-            socialBlade: finalSocialBlade,
+            socialBlade: finalAnalytics,
             strategy: parsedStrategy
         });
 
