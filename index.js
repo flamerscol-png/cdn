@@ -817,18 +817,45 @@ async function getSocialBladeData(handle) {
     while (retries >= 0) {
         try {
             console.log(`  🚀 Scraper: Launching Real Browser for ${handle} (Retries left: ${retries})...`);
+
+            const exePath = process.env.PUPPETEER_EXECUTABLE_PATH || null;
+            console.log(`  🔍 Scraper Info: Executable Path: ${exePath || 'Default'}`);
+
             const connectOptions = {
                 headless: 'auto',
                 turnstile: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
                 customConfig: {},
                 connectOption: {
                     defaultViewport: null,
-                    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
+                    executablePath: exePath
                 },
             };
 
-            const response = await connect(connectOptions);
+            let response;
+            try {
+                response = await connect(connectOptions);
+            } catch (launchError) {
+                console.error("  ❌ Real Browser Launch Failed:", launchError.message);
+
+                // Secondary Fallback: Standard Puppeteer Stealth (Render Compatible)
+                console.log("  🔄 Attempting Standard Puppeteer Stealth Fallback...");
+                const puppeteerExtra = require('puppeteer-extra');
+                const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+                if (!puppeteerExtra.getPlugins().some(p => p.name === 'stealth')) {
+                    puppeteerExtra.use(StealthPlugin());
+                }
+
+                const browserInstance = await puppeteerExtra.launch({
+                    headless: true,
+                    executablePath: exePath,
+                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                });
+
+                const pageInstance = await browserInstance.newPage();
+                response = { browser: browserInstance, page: pageInstance };
+            }
+
             browser = response.browser;
             const page = response.page;
             const sbUrl = `https://socialblade.com/youtube/${cleanHandle}`;
