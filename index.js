@@ -902,14 +902,19 @@ async function getViewStatsData(handle) {
     console.log(`📡 Fetching ViewStats API for ${cleanHandle}...`);
 
     try {
-        const [channel, stats, averages, split] = await Promise.all([
-            viewStatsRequest(`/channels/${cleanHandle}`),
-            viewStatsRequest(`/channels/${cleanHandle}/stats?range=30&withRevenue=true`),
-            viewStatsRequest(`/channels/${cleanHandle}/averages`),
-            viewStatsRequest(`/channels/${cleanHandle}/longsAndShorts`)
+        const channel = await viewStatsRequest(`/channels/${cleanHandle}`);
+        if (!channel) {
+            console.error(`  ❌ ViewStats: Channel data missing for ${cleanHandle}`);
+            return null;
+        }
+
+        const [stats, averages, split] = await Promise.all([
+            viewStatsRequest(`/channels/${cleanHandle}/stats?range=30&withRevenue=true`).catch(e => { console.error("Stats fail:", e.message); return null; }),
+            viewStatsRequest(`/channels/${cleanHandle}/averages`).catch(e => { console.error("Averages fail:", e.message); return null; }),
+            viewStatsRequest(`/channels/${cleanHandle}/longsAndShorts`).catch(e => { console.error("Split fail:", e.message); return null; })
         ]);
 
-        if (!channel) return null;
+        console.log(`  ✅ ViewStats: Data retrieved for ${channel.displayName || channel.name} (Stats: ${!!stats}, Avg: ${!!averages}, Split: ${!!split})`);
 
         // Process stats array (summing daily deltas)
         let last30Views = 0;
