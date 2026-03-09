@@ -813,127 +813,137 @@ app.get('/api/keep-alive', (req, res) => {
 });
 
 // ─── ROBUST VIEWSTATS SCRAPER ───
+// --- VIEWSTATS DIRECT API DECRYPTION (Reverse Engineered) ---
+const VS_IV_B64 = "Wzk3LCAxMDksIC0xMDAsIC05MCwgMTIyLCAtMTI0LCAxMSwgLTY5LCAtNDIsIDExNSwgLTU2LCAtNjcsIDQzLCAtNzUsIDMxLCA3NF0=";
+const VS_KEY_B64 = "Wy0zLCAtMTEyLCAxNSwgLTEyNCwgLTcxLCAzMywgLTg0LCAxMDksIDU3LCAtMTI3LCAxMDcsIC00NiwgMTIyLCA0OCwgODIsIC0xMjYsIDQ3LCA3NiwgLTEyNywgNjUsIDc1LCAxMTMsIC0xMjEsIDg5LCAtNzEsIDUwLCAtODMsIDg2LCA5MiwgLTQ2LCA0OSwgNTZd";
+const VS_API_TOKEN = '32ev9m0qggn227ng1rgpbv5j8qllas8uleujji3499g9had6oj7f0ltnvrgi00cq';
+const VS_BASE_URL = 'https://api.viewstats.com';
+
+function decryptViewStats(buffer) {
+    try {
+        const crypto = require('crypto');
+        const keyArr = JSON.parse(Buffer.from(VS_KEY_B64, 'base64').toString());
+        const ivArr = JSON.parse(Buffer.from(VS_IV_B64, 'base64').toString());
+
+        const key = Buffer.from(keyArr.map(b => b & 0xFF));
+        const iv = Buffer.from(ivArr.map(b => b & 0xFF));
+
+        const ciphertext = buffer.slice(0, -16);
+        const tag = buffer.slice(-16);
+
+        const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+        decipher.setAuthTag(tag);
+
+        let decrypted = decipher.update(ciphertext, null, 'utf8');
+        decrypted += decipher.final('utf8');
+
+        return JSON.parse(decrypted);
+    } catch (e) {
+        console.error('ViewStats Decryption Failed:', e.message);
+        return null;
+    }
+}
+
+async function viewStatsRequest(path) {
+    const axios = require('axios');
+    try {
+        const response = await axios.get(`${VS_BASE_URL}${path}`, {
+            headers: {
+                'Authorization': `Bearer ${VS_API_TOKEN}`,
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+                'Referer': 'https://www.viewstats.com/',
+                'sec-ch-ua': '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"'
+            },
+            responseType: 'arraybuffer'
+        });
+
+        const contentType = response.headers['content-type'] || '';
+        const buffer = Buffer.from(response.data);
+
+        if (contentType.includes('application/json')) {
+            return JSON.parse(buffer.toString());
+        } else {
+            return decryptViewStats(buffer);
+        }
+    } catch (error) {
+        console.error(`ViewStats API Error (${path}):`, error.message);
+        return null;
+    }
+}
+
 async function getViewStatsData(handle) {
     const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
-    const { connect } = require('puppeteer-real-browser');
-    let browser = null;
-    let retries = 2;
+    console.log(`📡 Fetching ViewStats API for ${cleanHandle}...`);
 
-    while (retries >= 0) {
-        try {
-            console.log(`  🚀 Scraper: Launching Real Browser for ${handle} (ViewStats)...`);
-            const puppeteer = require('puppeteer');
-            const defaultExePath = puppeteer.executablePath();
-            const exePath = process.env.PUPPETEER_EXECUTABLE_PATH || defaultExePath;
-            console.log(`  🔍 Scraper Info: Default Exe: ${defaultExePath} | Using Exe: ${exePath}`);
+    try {
+        const [channel, stats, averages, split] = await Promise.all([
+            viewStatsRequest(`/channels/${cleanHandle}`),
+            viewStatsRequest(`/channels/${cleanHandle}/stats?range=28&withRevenue=true`),
+            viewStatsRequest(`/channels/${cleanHandle}/averages`),
+            viewStatsRequest(`/channels/${cleanHandle}/longsAndShorts`)
+        ]);
 
-            const connectOptions = {
-                headless: 'auto',
-                turnstile: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-                customConfig: {},
-                connectOption: {
-                    defaultViewport: null,
-                    executablePath: exePath
-                },
-            };
+        if (!channel) return null;
 
-            let response;
-            try {
-                response = await connect(connectOptions);
-            } catch (launchError) {
-                console.error("  ❌ Real Browser Launch Failed:", launchError.message);
-                const puppeteerExtra = require('puppeteer-extra');
-                const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-                if (!puppeteerExtra.getPlugins().some(p => p.name === 'stealth')) puppeteerExtra.use(StealthPlugin());
+        // Process Comparison Data
+        let viewsComparison = "N/A";
+        let comparisonDate = "Last Month";
 
-                const browserInstance = await puppeteerExtra.launch({
-                    headless: true,
-                    executablePath: exePath,
-                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-                });
-                const pageInstance = await browserInstance.newPage();
-                response = { browser: browserInstance, page: pageInstance };
-            }
+        if (stats && stats.views && stats.views.comparison) {
+            const comp = stats.views.comparison;
+            // Format like Social Blade: "709M (22.5%)"
+            const diff = comp.difference ? (comp.difference > 0 ? "+" : "") + comp.difference.toLocaleString() : "";
+            const pct = comp.percentage ? `(${comp.difference >= 0 ? "+" : ""}${comp.percentage}%)` : "";
+            viewsComparison = `${diff} ${pct}`.trim() || "N/A";
 
-            browser = response.browser;
-            const page = response.page;
-            const vsUrl = `https://www.viewstats.com/channels/${cleanHandle}`;
-
-            console.log(`  🌐 Scraper: Navigating to ${vsUrl}`);
-            await page.goto(vsUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-            await new Promise(r => setTimeout(r, 12000));
-
-            const pageData = await page.evaluate(() => {
-                const title = document.title;
-                const text = document.body.innerText;
-
-                // Helper to find stats in the grid
-                const findStat = (label) => {
-                    const divs = Array.from(document.querySelectorAll('div'));
-                    const target = divs.find(d => d.innerText.trim() === label);
-                    if (target && target.nextElementSibling) return target.nextElementSibling.innerText.trim();
-                    if (target && target.parentElement) {
-                        const siblings = Array.from(target.parentElement.children);
-                        const idx = siblings.indexOf(target);
-                        return siblings[idx + 1]?.innerText.trim() || null;
-                    }
-                    return null;
-                };
-
-                return {
-                    title,
-                    subs28d: findStat('Subscribers') || findStat('Subs Change'),
-                    views28d: findStat('Views (Last 28 Days)') || findStat('Views Change'),
-                    earningsMonthly: findStat('Estimated Earnings') || findStat('Monthly Estimated Earnings'),
-                    uploads: findStat('Uploads'),
-                    country: findStat('Country'),
-                    channelType: findStat('Category') || findStat('Channel Type'),
-                    created: findStat('User Created'),
-                    subRank: findStat('Subscriber Rank'),
-                    viewRank: findStat('Video Views Rank')
-                };
-            });
-
-            await browser.close();
-            browser = null;
-
-            if (pageData.title.includes('Just a moment') || pageData.title.includes('Cloudflare')) {
-                console.log("  ❌ Scraper: Blocked by Cloudflare");
-                retries--;
-                continue;
-            }
-
-            const result = {
-                grade: "A", // ViewStats doesn't show a large letter grade like SB
-                uploads: pageData.uploads,
-                country: pageData.country,
-                channelType: pageData.channelType,
-                userCreated: pageData.created,
-                sbRank: pageData.viewRank, // Mapping ViewStats rank to our existing field
-                subRank: pageData.subRank,
-                monthlyEarnings: pageData.earningsMonthly,
-                last30DayViews: pageData.views28d,
-                source: 'ViewStats'
-            };
-
-            if (!result.monthlyEarnings && !result.last30DayViews) {
-                console.log("  ⚠️ Scraper: Content parsing failed. Retrying...");
-                retries--;
-                continue;
-            }
-
-            console.log(`  ✅ Scraper: Success (Source: ViewStats)`);
-            return result;
-
-        } catch (e) {
-            console.error("  ❌ Scraper Error:", e.message);
-            if (browser) await browser.close().catch(() => { });
-            browser = null;
-            retries--;
+            if (comp.dateStr) comparisonDate = comp.dateStr;
         }
+
+        // Process Earnings
+        let monthlyEarnings = "$0 - $0";
+        if (stats && stats.revenue && stats.revenue.estimated) {
+            const low = stats.revenue.estimated.low || 0;
+            const high = stats.revenue.estimated.high || 0;
+            monthlyEarnings = `$${low.toLocaleString()} - $${high.toLocaleString()}`;
+        }
+
+        // Process Split
+        let shortsVsLongs = "N/A";
+        if (split) {
+            const shorts = split.shorts?.percentage || 0;
+            const longs = split.longs?.percentage || 0;
+            shortsVsLongs = `Shorts: ${shorts}% | Longs: ${longs}%`;
+        }
+
+        return {
+            grade: channel.grade || "A",
+            uploads: channel.videoCount?.toLocaleString(),
+            country: channel.country || "US",
+            channelType: channel.category || "YouTube",
+            userCreated: channel.publishedAt ? new Date(channel.publishedAt).getFullYear().toString() : "N/A",
+            sbRank: channel.globalViewsRanking?.toLocaleString(),
+            subRank: channel.globalSubscribersRanking?.toLocaleString(),
+            viewRank: channel.globalViewsRanking?.toLocaleString(),
+            monthlyEarnings,
+            last30DayViews: channel.vpv30?.toLocaleString() || stats?.views?.total?.toLocaleString(),
+            viewsComparison,
+            comparisonDate,
+            shortsVsLongs,
+            averages: {
+                dailyViews: averages?.daily?.toLocaleString(),
+                weeklyViews: averages?.weekly?.toLocaleString()
+            },
+            subscribersLast30Days: channel.subs30?.toLocaleString(),
+            source: 'ViewStats API (Direct)'
+        };
+
+    } catch (e) {
+        console.error("ViewStats API Integration Error:", e.message);
+        return null;
     }
-    return null;
 }
 
 // ─── ROBUST SOCIAL BLADE SCRAPER ───
