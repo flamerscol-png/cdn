@@ -904,7 +904,7 @@ async function getViewStatsData(handle) {
     try {
         const [channel, stats, averages, split] = await Promise.all([
             viewStatsRequest(`/channels/${cleanHandle}`),
-            viewStatsRequest(`/channels/${cleanHandle}/stats?range=60&withRevenue=true`),
+            viewStatsRequest(`/channels/${cleanHandle}/stats?range=30&withRevenue=true`),
             viewStatsRequest(`/channels/${cleanHandle}/averages`),
             viewStatsRequest(`/channels/${cleanHandle}/longsAndShorts`)
         ]);
