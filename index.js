@@ -814,7 +814,7 @@ app.get('/api/keep-alive', (req, res) => {
 
 // ─── ROBUST VIEWSTATS SCRAPER ───
 // --- VIEWSTATS DIRECT API DECRYPTION (Reverse Engineered) ---
-const VS_IV_B64 = "Wzk3LCAxMDksIC0xMDAsIC05MCwgMTIyLCAtMTI0LCAxMSwgLTY5LCAtNDIsIDExNSwgLTU2LCAtNjcsIDQzLCAtNzUsIDMxLCA3NF0=";
+const VS_IV_B64 = "Wzk3LCAxMDksIC0xMDAsIC05MCwgMTIyLCAtMTI0LCAxMSwgLTY5LCAtNDIsIDExNSwgLTU4LCAtNjcsIDQzLCAtNzUsIDMxLCA3NF0=";
 const VS_KEY_B64 = "Wy0zLCAtMTEyLCAxNSwgLTEyNCwgLTcxLCAzMywgLTg0LCAxMDksIDU3LCAtMTI3LCAxMDcsIC00NiwgMTIyLCA0OCwgODIsIC0xMjYsIDQ3LCA3NiwgLTEyNywgNjUsIDc1LCAxMTMsIC0xMjEsIDg5LCAtNzEsIDUwLCAtODMsIDg2LCA5MiwgLTQ2LCA0OSwgNTZd";
 const VS_API_TOKEN = '32ev9m0qggn227ng1rgpbv5j8qllas8uleujji3499g9had6oj7f0ltnvrgi00cq';
 const VS_BASE_URL = 'https://api.viewstats.com';
@@ -946,238 +946,6 @@ async function getViewStatsData(handle) {
     }
 }
 
-// ─── ROBUST SOCIAL BLADE SCRAPER ───
-async function getSocialBladeData(handle) {
-    const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
-    const { connect } = require('puppeteer-real-browser');
-    let browser = null;
-    let retries = 2; // Try up to 3 times total
-
-    while (retries >= 0) {
-        try {
-            console.log(`  🚀 Scraper: Launching Real Browser for ${handle} (Retries left: ${retries})...`);
-
-            const puppeteer = require('puppeteer');
-            const defaultExePath = puppeteer.executablePath();
-            const exePath = process.env.PUPPETEER_EXECUTABLE_PATH || defaultExePath;
-            console.log(`  🔍 Scraper Info: Default Exe: ${defaultExePath} | Using Exe: ${exePath}`);
-
-            const connectOptions = {
-                headless: 'auto',
-                turnstile: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-                customConfig: {},
-                connectOption: {
-                    defaultViewport: null,
-                    executablePath: exePath
-                },
-            };
-
-            let response;
-            try {
-                response = await connect(connectOptions);
-            } catch (launchError) {
-                console.error("  ❌ Real Browser Launch Failed:", launchError.message);
-
-                // Secondary Fallback: Standard Puppeteer Stealth (Render Compatible)
-                console.log("  🔄 Attempting Standard Puppeteer Stealth Fallback...");
-                const puppeteerExtra = require('puppeteer-extra');
-                const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-                if (!puppeteerExtra.getPlugins().some(p => p.name === 'stealth')) {
-                    puppeteerExtra.use(StealthPlugin());
-                }
-
-                const browserInstance = await puppeteerExtra.launch({
-                    headless: true,
-                    executablePath: exePath,
-                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-                });
-
-                const pageInstance = await browserInstance.newPage();
-                response = { browser: browserInstance, page: pageInstance };
-            }
-
-            browser = response.browser;
-            const page = response.page;
-            const sbUrl = `https://socialblade.com/youtube/${cleanHandle}`;
-
-            console.log(`  🌐 Scraper: Navigating to ${sbUrl}`);
-            await page.goto(sbUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-
-            // Wait for potential Cloudflare challenge
-            await new Promise(r => setTimeout(r, 12000));
-
-            // Human-like interaction: mouse move
-            try {
-                await page.mouse.move(Math.random() * 500, Math.random() * 500);
-            } catch (e) { }
-
-            const pageData = await page.evaluate(() => {
-                const title = document.title;
-                const bodyText = document.body.innerText;
-                const html = document.body.innerHTML;
-
-                // Function to find value near label using XPath-like matching in JS
-                const getStat = (label) => {
-                    const ps = Array.from(document.querySelectorAll('p, span, div, h3'));
-                    const target = ps.find(p => p.innerText.trim().includes(label));
-                    if (!target) return null;
-
-                    // Social Blade often puts stats in following-sibling or child
-                    if (target.nextElementSibling) return target.nextElementSibling.innerText.trim();
-                    if (target.parentElement && target.parentElement.innerText.includes('\n')) {
-                        const parts = target.parentElement.innerText.split('\n');
-                        const idx = parts.findIndex(p => p.includes(label));
-                        return parts[idx + 1] || parts[idx - 1] || null;
-                    }
-                    return null;
-                };
-
-                // Specialized for Ranks (which have values BEFORE labels sometimes)
-                const getRank = (label) => {
-                    const ps = Array.from(document.querySelectorAll('p, span'));
-                    const target = ps.find(p => p.innerText.trim().includes(label));
-                    if (!target) return null;
-                    if (target.previousElementSibling) return target.previousElementSibling.innerText.trim();
-                    return null;
-                };
-
-                // Money Extraction (H2s near H3s)
-                const getEarnings = (label) => {
-                    const h3s = Array.from(document.querySelectorAll('h3'));
-                    const target = h3s.find(h => h.innerText.trim().includes(label));
-                    if (!target) return null;
-                    if (target.previousElementSibling) return target.previousElementSibling.innerText.trim();
-                    return null;
-                };
-
-                const getSplit = () => {
-                    const lines = document.body.innerText.split('\n').map(l => l.trim()).filter(l => l);
-                    const splitIdx = lines.findIndex(l => l.toUpperCase() === 'LONGS VS SHORTS');
-                    if (splitIdx >= 0) {
-                        try {
-                            let shortsPct = null;
-                            let longsPct = null;
-                            for (let i = splitIdx; i < splitIdx + 15; i++) {
-                                if (!lines[i]) continue;
-                                if (lines[i].includes('%') && !shortsPct) shortsPct = lines[i];
-                                else if (lines[i].includes('%') && shortsPct && !longsPct) longsPct = lines[i];
-                            }
-                            if (shortsPct && longsPct) {
-                                return "Shorts: " + shortsPct + " | Longs: " + longsPct;
-                            }
-                        } catch (e) { }
-                    }
-                    return null;
-                };
-
-                const getAverages = () => {
-                    const lines = document.body.innerText.split('\n').map(l => l.trim()).filter(l => l);
-                    const daily = lines.findIndex(l => l.toUpperCase() === 'DAILY AVG');
-                    const weekly = lines.findIndex(l => l.toUpperCase() === 'WEEKLY AVG');
-                    return {
-                        dailyViews: daily >= 0 ? lines[daily + 1] : null,
-                        weeklyViews: weekly >= 0 ? lines[weekly + 1] : null
-                    };
-                };
-
-                // Extract comparative metrics using a structured DOM walk
-                const extractComparison = () => {
-                    const lines = document.body.innerText.split('\n').map(l => l.trim()).filter(l => l);
-                    const momIdx = lines.findIndex(l => l.toUpperCase() === 'MONTH TO MONTH');
-                    if (momIdx >= 0) {
-                        let viewsMOM = null;
-                        let comparisonDate = null;
-
-                        // Look for the percentage and the date right after it
-                        for (let i = momIdx; i < momIdx + 15; i++) {
-                            if (!lines[i]) continue;
-                            if (lines[i].includes('(') && lines[i].includes('%')) {
-                                viewsMOM = lines[i];
-                                if (lines[i + 1]) {
-                                    comparisonDate = lines[i + 1];
-                                }
-                                break;
-                            }
-                        }
-                        return { viewsMOM, comparisonDate };
-                    }
-                    return { viewsMOM: null, comparisonDate: null };
-                };
-
-                const momData = extractComparison();
-
-                return {
-                    title,
-                    bodyText,
-                    uploads: getStat('Uploads'),
-                    totalSubscribers: lines[lines.findIndex(l => l === 'Subs') + 1] || getStat('Subscribers'),
-                    subscribersLast30Days: getStat('SUBS') || getStat('Subscribers for the last 30 days'),
-                    videoViews: getStat('Video Views'),
-                    country: getStat('Country'),
-                    channelType: getStat('Channel Type'),
-                    userCreated: getStat('User Created'),
-                    sbRank: getRank('SB Rank'),
-                    subRank: getRank('Subscribers Rank'),
-                    viewRank: getRank('Video Views Rank'),
-                    monthlyEarnings: getEarnings('Monthly Estimated Earnings'),
-                    yearlyEarnings: getEarnings('Yearly Estimated Earnings'),
-                    last30DayViews: getStat('VIEWS') || getStat('Video Views for the last 30 days') || getStat('Views for the last 30 days'),
-                    viewsComparison: momData.viewsMOM,
-                    comparisonDate: momData.comparisonDate,
-                    shortsVsLongs: getSplit(),
-                    averages: getAverages()
-                };
-            });
-
-            await browser.close();
-            browser = null;
-
-            if (pageData.title.includes('Just a moment') || pageData.title.includes('Cloudflare')) {
-                console.log("  ❌ Scraper: Blocked by Cloudflare challenge");
-                retries--;
-                continue;
-            }
-
-            // Cleanup results
-            const result = {
-                grade: (pageData.bodyText.match(/Grade\s+([A-F][+-]{0,2})/i) || [, "C"])[1],
-                uploads: pageData.uploads,
-                country: pageData.country,
-                channelType: pageData.channelType,
-                userCreated: pageData.userCreated,
-                sbRank: pageData.sbRank,
-                subRank: pageData.subRank,
-                viewRank: pageData.viewRank,
-                monthlyEarnings: pageData.monthlyEarnings,
-                yearlyEarnings: pageData.yearlyEarnings,
-                last30DayViews: pageData.last30DayViews,
-                viewsComparison: pageData.viewsComparison,
-                comparisonDate: pageData.comparisonDate,
-                shortsVsLongs: pageData.shortsVsLongs,
-                averages: pageData.averages,
-                subscribersLast30Days: pageData.subscribersLast30Days,
-                source: 'Premium Analytics Tracker'
-            };
-
-            if (!result.last30DayViews && !result.monthlyEarnings) {
-                console.log("  ⚠️ Scraper: Found page but content parsing failed. Retrying...");
-                retries--;
-                continue;
-            }
-
-            console.log(`  ✅ Scraper: Success(Monthly: ${result.monthlyEarnings})`);
-            return result;
-
-        } catch (e) {
-            console.error("  ❌ Scraper Error:", e.message);
-            if (browser) await browser.close().catch(() => { });
-            browser = null;
-            retries--;
-        }
-    }
-    return null;
-}
 
 app.post('/api/youtube/strategy', async (req, res) => {
     const { handle, competitorHandle } = req.body;
@@ -1228,28 +996,18 @@ app.post('/api/youtube/strategy', async (req, res) => {
 
         if (!yourData) throw new Error(`Channel ${handle} not found`);
 
-        // 3. Fallback Algorithm if Scraper fails
+        // 3. Set Final Analytics (Strictly API-only)
         let finalAnalytics = viewStats;
-        if (!finalAnalytics || !finalAnalytics.monthlyEarnings) {
-            console.log("⚠️ Scraper failed or returned nothing, using backend fallback algorithm");
-            const views = yourData.thirtyDayViews || 0;
-            const subs = parseInt(yourData.subscribers.replace(/,/g, '')) || 0;
 
-            const getGrade = (v) => v > 5000000 ? "A" : v > 1000000 ? "B+" : v > 500000 ? "B" : v > 100000 ? "B-" : "C";
-            const getRank = (s) => s > 1000000 ? "15,000th" : s > 100000 ? "100,000th" : "500,000th+";
-            const getEarnings = (v) => {
-                const low = Math.round((v / 1000) * 1.5);
-                const high = Math.round((v / 1000) * 4.0);
-                return `$${low.toLocaleString()} - $${high.toLocaleString()}`;
-            };
-
+        if (!finalAnalytics) {
+            console.warn("⚠️ ViewStats API returned nothing.");
             finalAnalytics = {
-                grade: getGrade(views),
-                subRank: getRank(subs),
-                monthlyEarnings: getEarnings(views),
-                last30DayViews: views.toLocaleString(),
+                grade: "N/A",
+                subRank: "N/A",
+                monthlyEarnings: "$0 - $0",
+                last30DayViews: "0",
                 viewsComparison: 'N/A',
-                source: 'Backend Fallback'
+                source: 'ViewStats (Failed)'
             };
         }
 
