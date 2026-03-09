@@ -5,7 +5,4 @@ set -o errexit
 # Install dependencies
 npm install
 
-# Install dependencies
-npm install
-
-echo "...Build Complete (Skipping Chromium for Direct API)..."
+echo "...Build Complete (Using Direct API)..."
