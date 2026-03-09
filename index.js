@@ -819,7 +819,7 @@ const VS_KEY_B64 = "Wy0zLCAtMTEyLCAxNSwgLTEyNCwgLTcxLCAzMywgLTg0LCAxMDksIDU3LCAt
 const VS_API_TOKEN = '32ev9m0qggn227ng1rgpbv5j8qllas8uleujji3499g9had6oj7f0ltnvrgi00cq';
 const VS_BASE_URL = 'https://api.viewstats.com';
 
-function decryptViewStats(buffer) {
+function decryptViewStats(data) {
     try {
         const crypto = require('crypto');
         const keyArr = JSON.parse(Buffer.from(VS_KEY_B64, 'base64').toString());
@@ -828,8 +828,8 @@ function decryptViewStats(buffer) {
         const key = Buffer.from(keyArr.map(b => b & 0xFF));
         const iv = Buffer.from(ivArr.map(b => b & 0xFF));
 
-        const ciphertext = buffer.slice(0, -16);
-        const tag = buffer.slice(-16);
+        const ciphertext = data.slice(0, -16);
+        const tag = data.slice(-16);
 
         const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
         decipher.setAuthTag(tag);
@@ -839,15 +839,19 @@ function decryptViewStats(buffer) {
 
         return JSON.parse(decrypted);
     } catch (e) {
-        console.error('ViewStats Decryption Failed:', e.message);
+        console.error('  ❌ ViewStats Decryption Failed:', e.message);
         return null;
     }
 }
 
 async function viewStatsRequest(path) {
-    const axios = require('axios');
-    try {
-        const response = await axios.get(`${VS_BASE_URL}${path}`, {
+    return new Promise((resolve) => {
+        const https = require('https');
+        const url = new URL(path, VS_BASE_URL);
+        const options = {
+            hostname: url.hostname,
+            path: url.pathname + url.search,
+            method: 'GET',
             headers: {
                 'Authorization': `Bearer ${VS_API_TOKEN}`,
                 'Accept': 'application/json',
@@ -856,22 +860,38 @@ async function viewStatsRequest(path) {
                 'sec-ch-ua': '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
                 'sec-ch-ua-mobile': '?0',
                 'sec-ch-ua-platform': '"Windows"'
-            },
-            responseType: 'arraybuffer'
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+                const buffer = Buffer.concat(chunks);
+                if (res.statusCode === 200) {
+                    const contentType = res.headers['content-type'] || '';
+                    if (contentType.includes('application/json')) {
+                        try {
+                            resolve(JSON.parse(buffer.toString()));
+                        } catch (e) {
+                            console.error(`  ⚠️ ViewStats JSON Parse Failed (${path}):`, e.message);
+                            resolve(null);
+                        }
+                    } else {
+                        resolve(decryptViewStats(buffer));
+                    }
+                } else {
+                    console.error(`  ❌ ViewStats API Error (${path}): Status ${res.statusCode}`);
+                    resolve(null);
+                }
+            });
         });
-
-        const contentType = response.headers['content-type'] || '';
-        const buffer = Buffer.from(response.data);
-
-        if (contentType.includes('application/json')) {
-            return JSON.parse(buffer.toString());
-        } else {
-            return decryptViewStats(buffer);
-        }
-    } catch (error) {
-        console.error(`ViewStats API Error (${path}):`, error.message);
-        return null;
-    }
+        req.on('error', (e) => {
+            console.error(`  ❌ ViewStats Network Error (${path}):`, e.message);
+            resolve(null);
+        });
+        req.end();
+    });
 }
 
 async function getViewStatsData(handle) {
