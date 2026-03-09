@@ -1073,45 +1073,29 @@ async function getSocialBladeData(handle) {
 
                 // Extract comparative metrics using a structured DOM walk
                 const extractComparison = () => {
-                    // Look for pill spans typically containing SVG arrows
-                    // ViewStats usually uses CSS classes with 'red' or 'green' or child SVGs
-                    // Since it's tricky, let's find the card explicitly:
-                    const blocks = Array.from(document.querySelectorAll('div'));
-                    for (const block of blocks) {
-                        const t = block.innerText;
-                        if (t && t.includes('VIEWS') && t.includes('LAST 28 DAYS')) {
-                            // Find the pill-like element
-                            // It usually contains an SVG and text
-                            const spans = Array.from(block.querySelectorAll('span, div'));
-                            for (const span of spans) {
-                                const spanText = span.innerText;
-                                if (spanText && /^\s*\d+(\.\d+)?[KM]?\s*$/.test(spanText)) {
-                                    // Might be the pill. Let's look for SVG siblings or children
-                                    const hasSvg = span.querySelector('svg') || (span.parentElement && span.parentElement.querySelector('svg'));
-                                    if (hasSvg) {
-                                        // Let's grab the HTML to see arrow direction
-                                        const html = (span.parentElement || span).innerHTML;
-                                        const isDown = html.includes('rotate(180)') || html.includes('down') || span.className.includes('red');
-                                        return (isDown ? '-' : '+') + spanText.trim();
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Fallback to text reading if specific markup fails
                     const lines = document.body.innerText.split('\n').map(l => l.trim()).filter(l => l);
                     const momIdx = lines.findIndex(l => l.toUpperCase() === 'MONTH TO MONTH');
                     if (momIdx >= 0) {
-                        // lines usually: Month to Month, Views, Subscribers, 3B, 709M (22.5%)
-                        for (let i = momIdx; i < lines.length; i++) {
+                        let viewsMOM = null;
+                        let comparisonDate = null;
+
+                        // Look for the percentage and the date right after it
+                        for (let i = momIdx; i < momIdx + 15; i++) {
+                            if (!lines[i]) continue;
                             if (lines[i].includes('(') && lines[i].includes('%')) {
-                                return lines[i]; // E.g., "709M (22.5%)"
+                                viewsMOM = lines[i];
+                                if (lines[i + 1]) {
+                                    comparisonDate = lines[i + 1];
+                                }
+                                break;
                             }
                         }
+                        return { viewsMOM, comparisonDate };
                     }
-                    return null;
+                    return { viewsMOM: null, comparisonDate: null };
                 };
+
+                const momData = extractComparison();
 
                 return {
                     title,
@@ -1129,7 +1113,8 @@ async function getSocialBladeData(handle) {
                     monthlyEarnings: getEarnings('Monthly Estimated Earnings'),
                     yearlyEarnings: getEarnings('Yearly Estimated Earnings'),
                     last30DayViews: getStat('VIEWS') || getStat('Video Views for the last 30 days') || getStat('Views for the last 30 days'),
-                    viewsComparison: extractComparison(),
+                    viewsComparison: momData.viewsMOM,
+                    comparisonDate: momData.comparisonDate,
                     shortsVsLongs: getSplit(),
                     averages: getAverages()
                 };
@@ -1158,6 +1143,7 @@ async function getSocialBladeData(handle) {
                 yearlyEarnings: pageData.yearlyEarnings,
                 last30DayViews: pageData.last30DayViews,
                 viewsComparison: pageData.viewsComparison,
+                comparisonDate: pageData.comparisonDate,
                 shortsVsLongs: pageData.shortsVsLongs,
                 averages: pageData.averages,
                 subscribersLast30Days: pageData.subscribersLast30Days,
@@ -1265,7 +1251,7 @@ app.post('/api/youtube/strategy', async (req, res) => {
             - Subs: ${yourData.subscribers}
             - 30d Subs Gained: ${finalAnalytics.subscribersLast30Days || 'N/A'}
             - 30d Views: ${yourData.thirtyDayViews}
-            - MoM View Comparison: ${finalAnalytics.viewsComparison || 'N/A'}
+            - MoM View Comparison: ${finalAnalytics.viewsComparison || 'N/A'} (Compared to ${finalAnalytics.comparisonDate || 'Last Month'})
             - Content Format Split (Shorts/Longs): ${finalAnalytics.shortsVsLongs || 'N/A'}
             - Daily Avg Views: ${finalAnalytics.averages?.dailyViews || 'N/A'}
             - Weekly Avg Views: ${finalAnalytics.averages?.weeklyViews || 'N/A'}
