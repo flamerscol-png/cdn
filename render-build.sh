@@ -5,6 +5,7 @@ set -o errexit
 # Install dependencies
 npm install
 
-# Ensure Puppeteer downloads Chromium
-echo "...Installing Chromium..."
-npx puppeteer browsers install chrome
+# Install dependencies
+npm install
+
+echo "...Build Complete (Skipping Chromium for Direct API)..."
