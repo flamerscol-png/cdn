@@ -870,16 +870,19 @@ async function viewStatsRequest(path) {
                 const buffer = Buffer.concat(chunks);
                 if (res.statusCode === 200) {
                     const contentType = res.headers['content-type'] || '';
+                    let result = null;
                     if (contentType.includes('application/json')) {
                         try {
-                            resolve(JSON.parse(buffer.toString()));
+                            result = JSON.parse(buffer.toString());
                         } catch (e) {
                             console.error(`  ⚠️ ViewStats JSON Parse Failed (${path}):`, e.message);
                             resolve(null);
                         }
                     } else {
-                        resolve(decryptViewStats(buffer));
+                        result = decryptViewStats(buffer);
                     }
+                    // Unwrap .data if exists (ViewStats API wraps its responses)
+                    resolve(result && result.data ? result.data : result);
                 } else {
                     console.error(`  ❌ ViewStats API Error (${path}): Status ${res.statusCode}`);
                     resolve(null);
@@ -901,33 +904,45 @@ async function getViewStatsData(handle) {
     try {
         const [channel, stats, averages, split] = await Promise.all([
             viewStatsRequest(`/channels/${cleanHandle}`),
-            viewStatsRequest(`/channels/${cleanHandle}/stats?range=28&withRevenue=true`),
+            viewStatsRequest(`/channels/${cleanHandle}/stats?range=60&withRevenue=true`),
             viewStatsRequest(`/channels/${cleanHandle}/averages`),
             viewStatsRequest(`/channels/${cleanHandle}/longsAndShorts`)
         ]);
 
         if (!channel) return null;
 
-        // Process Comparison Data
-        let viewsComparison = "N/A";
-        let comparisonDate = "Last Month";
+        // Process stats array (summing daily deltas)
+        let last30Views = 0;
+        let prev30Views = 0;
+        let monthlyEarningsLow = 0;
+        let monthlyEarningsHigh = 0;
 
-        if (stats && stats.views && stats.views.comparison) {
-            const comp = stats.views.comparison;
-            // Format like Social Blade: "709M (22.5%)"
-            const diff = comp.difference ? (comp.difference > 0 ? "+" : "") + comp.difference.toLocaleString() : "";
-            const pct = comp.percentage ? `(${comp.difference >= 0 ? "+" : ""}${comp.percentage}%)` : "";
-            viewsComparison = `${diff} ${pct}`.trim() || "N/A";
+        if (Array.isArray(stats)) {
+            // Stats should be sorted by date ASC (oldest first). 
+            // We want last 30 days vs previous 30 days.
+            const totalDays = stats.length;
+            const currentPeriod = stats.slice(Math.max(0, totalDays - 30));
+            const prevPeriod = stats.slice(Math.max(0, totalDays - 60), Math.max(0, totalDays - 30));
 
-            if (comp.dateStr) comparisonDate = comp.dateStr;
+            currentPeriod.forEach(day => {
+                last30Views += (day.viewCountDelta || 0);
+                monthlyEarningsLow += (day.estimatedLowRevenueUsd || 0);
+                monthlyEarningsHigh += (day.estimatedHighRevenueUsd || 0);
+            });
+
+            prevPeriod.forEach(day => {
+                prev30Views += (day.viewCountDelta || 0);
+            });
         }
 
-        // Process Earnings
-        let monthlyEarnings = "$0 - $0";
-        if (stats && stats.revenue && stats.revenue.estimated) {
-            const low = stats.revenue.estimated.low || 0;
-            const high = stats.revenue.estimated.high || 0;
-            monthlyEarnings = `$${low.toLocaleString()} - $${high.toLocaleString()}`;
+        // Calculate Views Comparison
+        let viewsComparison = "N/A";
+        if (last30Views > 0 && prev30Views > 0) {
+            const diff = last30Views - prev30Views;
+            const pct = ((diff / prev30Views) * 100).toFixed(1);
+            viewsComparison = `${(diff >= 0 ? "+" : "")}${diff.toLocaleString()} (${diff >= 0 ? "+" : ""}${pct}%)`;
+        } else if (last30Views > 0) {
+            viewsComparison = "New Channel Data";
         }
 
         // Process Split
@@ -940,23 +955,24 @@ async function getViewStatsData(handle) {
 
         return {
             grade: channel.grade || "A",
-            uploads: channel.videoCount?.toLocaleString(),
+            name: channel.displayName || channel.name,
+            uploads: (channel.videoCount || 0).toLocaleString(),
             country: channel.country || "US",
             channelType: channel.category || "YouTube",
             userCreated: channel.publishedAt ? new Date(channel.publishedAt).getFullYear().toString() : "N/A",
-            sbRank: channel.globalViewsRanking?.toLocaleString(),
-            subRank: channel.globalSubscribersRanking?.toLocaleString(),
-            viewRank: channel.globalViewsRanking?.toLocaleString(),
-            monthlyEarnings,
-            last30DayViews: channel.vpv30?.toLocaleString() || stats?.views?.total?.toLocaleString(),
+            sbRank: (channel.globalViewsRanking || 0).toLocaleString(),
+            subRank: (channel.globalSubscribersRanking || 0).toLocaleString(),
+            viewRank: (channel.globalViewsRanking || 0).toLocaleString(),
+            monthlyEarnings: monthlyEarningsLow > 0 ? `$${monthlyEarningsLow.toLocaleString()} - $${monthlyEarningsHigh.toLocaleString()}` : "$0 - $0",
+            last30DayViews: last30Views > 0 ? last30Views.toLocaleString() : (channel.vpv30 || 0).toLocaleString(),
             viewsComparison,
-            comparisonDate,
+            comparisonDate: "Last 30 Days vs Prev 30 Days",
             shortsVsLongs,
             averages: {
                 dailyViews: averages?.daily?.toLocaleString(),
                 weeklyViews: averages?.weekly?.toLocaleString()
             },
-            subscribersLast30Days: channel.subs30?.toLocaleString(),
+            subscribersLast30Days: (channel.subs30 || 0).toLocaleString(),
             source: 'ViewStats API (Direct)'
         };
 
