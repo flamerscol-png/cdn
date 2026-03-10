@@ -712,16 +712,24 @@ app.post('/api/youtube/strategy', async (req, res) => {
             const ch = data.items[0];
 
             // Get recent videos
-            const uploadsId = ch.contentDetails.relatedPlaylists.uploads;
-            const { data: vData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsId}&maxResults=20&key=${YOUTUBE_API_KEY}`);
-
-            const recentTitles = vData.items?.map(v => v.snippet.title) || [];
-            const recentIds = vData.items?.map(v => v.snippet.resourceId.videoId) || [];
-
+            let recentTitles = [];
             let recentViews = 0;
-            if (recentIds.length > 0) {
-                const { data: statsData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/videos?part=statistics&id=${recentIds.join(',')}&key=${YOUTUBE_API_KEY}`);
-                recentViews = statsData.items?.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || 0), 0) || 0;
+
+            try {
+                const uploadsId = ch.contentDetails.relatedPlaylists.uploads;
+                if (uploadsId) {
+                    const { data: vData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsId}&maxResults=20&key=${YOUTUBE_API_KEY}`);
+
+                    recentTitles = vData.items?.map(v => v.snippet.title) || [];
+                    const recentIds = vData.items?.map(v => v.snippet.resourceId.videoId) || [];
+
+                    if (recentIds.length > 0) {
+                        const { data: statsData } = await axios.get(`https://youtube.googleapis.com/youtube/v3/videos?part=statistics&id=${recentIds.join(',')}&key=${YOUTUBE_API_KEY}`);
+                        recentViews = statsData.items?.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || 0), 0) || 0;
+                    }
+                }
+            } catch (vErr) {
+                console.warn(`⚠️ Could not fetch videos for ${h}:`, vErr.message);
             }
 
             return {
