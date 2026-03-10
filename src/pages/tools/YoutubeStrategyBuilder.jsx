@@ -23,6 +23,19 @@ const calculateEarnings = (views) => {
     };
 };
 
+const calculateChannelGrade = (subRank) => {
+    const rank = typeof subRank === 'string' ? parseInt(subRank.replace(/,/g, '')) : subRank;
+    if (!rank || isNaN(rank)) return "C";
+    if (rank <= 100) return "A++";
+    if (rank <= 1000) return "A+";
+    if (rank <= 5000) return "A";
+    if (rank <= 15000) return "A-";
+    if (rank <= 50000) return "B+";
+    if (rank <= 100000) return "B";
+    if (rank <= 500000) return "C+";
+    return "C";
+};
+
 const calculateSocialBladeGrade = (views) => {
     if (views > 50000000) return "A+";
     if (views > 15000000) return "A";
@@ -164,24 +177,35 @@ const fetchViewStatsDirect = async (handle) => {
             });
         }
 
+        // Fallback to averages if stats are empty (common for large channels)
+        if (last30Views === 0 && averages?.monthly) {
+            last30Views = averages.monthly.viewsAverage || 0;
+            earnedLow = averages.monthly.estimatedRevenueLowUsd || 0;
+            earnedHigh = averages.monthly.estimatedRevenueHighUsd || 0;
+            console.log("📊 Using Monthly Averages Fallback");
+        }
+
+        const subRankValue = channel.globalSubscribersRanking || 0;
+        const grade = channel.grade && channel.grade !== "N/A" ? channel.grade : calculateChannelGrade(subRankValue);
+
         return {
-            grade: channel.grade || "N/A",
+            grade: grade,
             name: channel.displayName || channel.name,
             uploads: formatCompactNumber(channel.videoCount || 0),
             country: channel.country || "US",
             channelType: channel.category || "YouTube",
             userCreated: channel.publishedAt ? new Date(channel.publishedAt).getFullYear().toString() : "N/A",
-            subRank: formatCompactNumber(channel.globalSubscribersRanking || 0),
+            subRank: formatCompactNumber(subRankValue),
             monthlyEarnings: earnedLow > 0 ? `$${formatCompactNumber(earnedLow)} - $${formatCompactNumber(earnedHigh)}` : "$0 - $0",
             last30DayViews: last30Views > 0 ? formatCompactNumber(last30Views) : formatCompactNumber(channel.vpv30 || 0),
             shortsVsLongs: split ? `Shorts: ${split.shorts?.percentage || 0}% | Longs: ${split.longs?.percentage || 0}%` : "N/A",
-            subscribersLast30Days: formatCompactNumber(channel.subs30 || 0),
+            subscribersLast30Days: channel.subs30 ? formatCompactNumber(channel.subs30) : (averages?.monthly?.subsAverage ? formatCompactNumber(averages.monthly.subsAverage) : "N/A"),
             averages: {
-                dailyViews: averages?.daily ? formatCompactNumber(averages.daily) : "N/A",
-                weeklyViews: averages?.weekly ? formatCompactNumber(averages.weekly) : "N/A"
+                dailyViews: averages?.daily?.viewsAverage ? formatCompactNumber(averages.daily.viewsAverage) : "N/A",
+                weeklyViews: averages?.weekly?.viewsAverage ? formatCompactNumber(averages.weekly.viewsAverage) : "N/A"
             },
             yearlyEarnings: earnedLow > 0 ? `$${formatCompactNumber(earnedLow * 12)} - $${formatCompactNumber(earnedHigh * 12)}` : "$0 - $0",
-            source: 'ViewStats (Direct Browser)'
+            source: last30Views === channel.vpv30 ? 'ViewStats (Projected)' : 'ViewStats (Direct Browser)'
         };
     } catch (e) {
         console.error("fetchViewStatsDirect Error:", e);
