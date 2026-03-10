@@ -647,6 +647,14 @@ async function getViewStatsData(handle) {
             });
         }
 
+        // Fallback to averages if stats are empty (common for large channels)
+        if (last30Views === 0 && averages?.monthly) {
+            last30Views = averages.monthly.viewsAverage || 0;
+            monthlyEarningsLow = averages.monthly.estimatedRevenueLowUsd || 0;
+            monthlyEarningsHigh = averages.monthly.estimatedRevenueHighUsd || 0;
+            console.log("  📊 Backend: Using Monthly Averages Fallback");
+        }
+
         // Calculate Views Comparison
         let viewsComparison = "N/A";
         if (last30Views > 0 && prev30Views > 0) {
@@ -665,15 +673,17 @@ async function getViewStatsData(handle) {
             shortsVsLongs = `Shorts: ${shorts}% | Longs: ${longs}%`;
         }
 
+        const subRankValue = channel.globalSubscribersRanking || 0;
+
         return {
-            grade: channel.grade || "A",
+            grade: channel.grade && channel.grade !== 'N/A' ? channel.grade : 'B',
             name: channel.displayName || channel.name,
             uploads: (channel.videoCount || 0).toLocaleString(),
             country: channel.country || "US",
             channelType: channel.category || "YouTube",
             userCreated: channel.publishedAt ? new Date(channel.publishedAt).getFullYear().toString() : "N/A",
             sbRank: (channel.globalViewsRanking || 0).toLocaleString(),
-            subRank: (channel.globalSubscribersRanking || 0).toLocaleString(),
+            subRank: subRankValue.toLocaleString(),
             viewRank: (channel.globalViewsRanking || 0).toLocaleString(),
             monthlyEarnings: monthlyEarningsLow > 0 ? `$${monthlyEarningsLow.toLocaleString()} - $${monthlyEarningsHigh.toLocaleString()}` : "$0 - $0",
             last30DayViews: last30Views > 0 ? last30Views.toLocaleString() : (channel.vpv30 || 0).toLocaleString(),
@@ -681,11 +691,11 @@ async function getViewStatsData(handle) {
             comparisonDate: "Last 30 Days vs Prev 30 Days",
             shortsVsLongs,
             averages: {
-                dailyViews: averages?.daily?.toLocaleString(),
-                weeklyViews: averages?.weekly?.toLocaleString()
+                dailyViews: averages?.daily?.viewsAverage?.toLocaleString() || "—",
+                weeklyViews: averages?.weekly?.viewsAverage?.toLocaleString() || "—"
             },
-            subscribersLast30Days: (channel.subs30 || 0).toLocaleString(),
-            source: 'ViewStats API (Direct)'
+            subscribersLast30Days: channel.subs30 ? channel.subs30.toLocaleString() : (averages?.monthly?.subsAverage?.toLocaleString() || "—"),
+            source: last30Views === channel.vpv30 ? 'ViewStats API (Projected)' : 'ViewStats API (Direct)'
         };
 
     } catch (e) {
