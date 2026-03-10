@@ -562,16 +562,13 @@ function decryptViewStats(data) {
 }
 
 async function viewStatsRequest(path) {
-    return new Promise((resolve) => {
-        const https = require('https');
-        const url = new URL(path, VS_BASE_URL);
-        const options = {
-            hostname: url.hostname,
-            path: url.pathname + url.search,
+    const url = `${VS_BASE_URL}${path}`;
+    try {
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${VS_API_TOKEN}`,
-                'Accept': 'application/json',
+                'Accept': 'application/json, text/plain, */*',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
@@ -582,42 +579,29 @@ async function viewStatsRequest(path) {
                 'sec-ch-ua-platform': '"Windows"',
                 'sec-fetch-dest': 'empty',
                 'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-site'
+                'sec-fetch-site': 'same-site',
+                'Priority': 'u=1, i'
             }
-        };
+        });
 
-        const req = https.request(options, (res) => {
-            const chunks = [];
-            res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => {
-                const buffer = Buffer.concat(chunks);
-                if (res.statusCode === 200) {
-                    const contentType = res.headers['content-type'] || '';
-                    let result = null;
-                    if (contentType.includes('application/json')) {
-                        try {
-                            result = JSON.parse(buffer.toString());
-                        } catch (e) {
-                            console.error(`  ⚠️ ViewStats JSON Parse Failed (${path}):`, e.message);
-                            resolve(null);
-                        }
-                    } else {
-                        result = decryptViewStats(buffer);
-                    }
-                    // Unwrap .data if exists (ViewStats API wraps its responses)
-                    resolve(result && result.data ? result.data : result);
-                } else {
-                    console.error(`  ❌ ViewStats API Error (${path}): Status ${res.statusCode}`);
-                    resolve(null);
-                }
-            });
-        });
-        req.on('error', (e) => {
-            console.error(`  ❌ ViewStats Network Error (${path}):`, e.message);
-            resolve(null);
-        });
-        req.end();
-    });
+        if (response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const result = await response.json();
+                return result && result.data ? result.data : result;
+            } else {
+                const buffer = Buffer.from(await response.arrayBuffer());
+                const result = decryptViewStats(buffer);
+                return result && result.data ? result.data : result;
+            }
+        } else {
+            console.error(`  ❌ ViewStats API Error (${path}): Status ${response.status} ${response.statusText}`);
+            return null;
+        }
+    } catch (e) {
+        console.error(`  ❌ ViewStats Network Error (${path}):`, e.message);
+        return null;
+    }
 }
 
 async function getViewStatsData(handle) {
