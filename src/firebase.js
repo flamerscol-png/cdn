@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getDatabase, ref, get } from "firebase/database";
+import { getDatabase, ref, get, onValue } from "firebase/database";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -23,18 +23,15 @@ const googleProvider = new GoogleAuthProvider();
 const database = getDatabase(app);
 
 // Database connectivity check
-const checkDatabaseConnection = async () => {
-    try {
-        const testRef = ref(database, '.info/connected');
-        await get(testRef);
-        console.log("[Firebase] ✅ Database connection OK");
-        return true;
-    } catch (error) {
-        console.error("[Firebase] ❌ Database connection FAILED:", error.message);
-        console.error("[Firebase] Current databaseURL:", firebaseConfig.databaseURL);
-        console.error("[Firebase] Go to https://console.firebase.google.com/project/flamercoal/database to verify the URL");
-        return false;
-    }
+const checkDatabaseConnection = () => {
+    const connectedRef = ref(database, ".info/connected");
+    onValue(connectedRef, (snap) => {
+        if (snap.val() === true) {
+            console.log("[Firebase] ✅ Database connection OK");
+        } else {
+            console.warn("[Firebase] 🔄 Database connection Lost/Waiting...");
+        }
+    });
 };
 
 // Run check on load

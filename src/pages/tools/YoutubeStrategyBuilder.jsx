@@ -127,9 +127,30 @@ const fetchViewStatsDirect = async (handle) => {
             apiReq(`/channels/${cleanHandle}/stats?range=30&withRevenue=true`),
             apiReq(`/channels/${cleanHandle}/longsAndShorts`),
             apiReq(`/channels/${cleanHandle}/averages`)
-        ]);
+        ]).catch(err => {
+            console.warn("ViewStats Batch Fetch partially failed:", err);
+            return [null, null, null, null];
+        });
 
-        if (!channel) return null;
+        if (!channel) {
+            console.warn(`ViewStats has no data for ${cleanHandle}. Using basic fallbacks.`);
+            return {
+                grade: "N/A",
+                name: cleanHandle,
+                uploads: "—",
+                country: "—",
+                channelType: "—",
+                userCreated: "N/A",
+                subRank: "N/A",
+                monthlyEarnings: "$0 - $0",
+                last30DayViews: "N/A",
+                shortsVsLongs: "N/A",
+                subscribersLast30Days: "N/A",
+                averages: { dailyViews: "N/A", weeklyViews: "N/A" },
+                yearlyEarnings: "$0 - $0",
+                source: 'ViewStats (No Data found)'
+            };
+        }
 
         let last30Views = 0;
         let earnedLow = 0;
@@ -144,7 +165,7 @@ const fetchViewStatsDirect = async (handle) => {
         }
 
         return {
-            grade: channel.grade || "A",
+            grade: channel.grade || "N/A",
             name: channel.displayName || channel.name,
             uploads: formatCompactNumber(channel.videoCount || 0),
             country: channel.country || "US",
@@ -156,8 +177,8 @@ const fetchViewStatsDirect = async (handle) => {
             shortsVsLongs: split ? `Shorts: ${split.shorts?.percentage || 0}% | Longs: ${split.longs?.percentage || 0}%` : "N/A",
             subscribersLast30Days: formatCompactNumber(channel.subs30 || 0),
             averages: {
-                dailyViews: averages?.daily ? formatCompactNumber(averages.daily) : "—",
-                weeklyViews: averages?.weekly ? formatCompactNumber(averages.weekly) : "—"
+                dailyViews: averages?.daily ? formatCompactNumber(averages.daily) : "N/A",
+                weeklyViews: averages?.weekly ? formatCompactNumber(averages.weekly) : "N/A"
             },
             yearlyEarnings: earnedLow > 0 ? `$${formatCompactNumber(earnedLow * 12)} - $${formatCompactNumber(earnedHigh * 12)}` : "$0 - $0",
             source: 'ViewStats (Direct Browser)'
