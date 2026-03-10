@@ -2,14 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const googleTrends = require('google-trends-api');
-const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 console.log("🚀 Server Starting...");
 console.log(`📂 Working Directory: ${process.cwd()}`);
-console.log(`🔧 Puppeteer Executable Path (ENV): ${process.env.PUPPETEER_EXECUTABLE_PATH || 'Not Set'}`);
 console.log(`🔧 Node Version: ${process.version}`);
 
 // Initialize Firebase Admin (Optional: Required for auto-credits)
@@ -132,114 +130,14 @@ app.get('/api/keywords', async (req, res) => {
     }
 });
 
-// ==================== COMPETITORS ENDPOINT (Puppeteer) ====================
+// ==================== COMPETITORS ENDPOINT (Legacy Scraper Removed) ====================
 app.get('/api/competitors', async (req, res) => {
     const query = req.query.q;
     if (!query) return res.status(400).json({ error: 'Missing query' });
-    console.log(`⚔️  Analyzing Competitors for: ${query}`);
+    console.log(`⚔️  Analyzing Competitors (Stub) for: ${query}`);
 
-    let browser = null;
-    try {
-        const domainStats = {};
-        let rankCounter = 0;
-
-        const blacklist = ['google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com', 'microsoft.com', 'w3.org', 'schema.org'];
-
-        const addDomain = (d) => {
-            if (!d) return;
-            const clean = d.replace(/^www\./, '').toLowerCase();
-            if (clean && clean.includes('.') && !blacklist.some(b => clean === b || clean.endsWith('.' + b))) {
-                if (!domainStats[clean]) {
-                    domainStats[clean] = { count: 1, firstRank: rankCounter++ };
-                } else {
-                    domainStats[clean].count++;
-                }
-            }
-        };
-
-        const launchOptions = {
-            headless: 'new',
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
-        };
-
-        browser = await puppeteer.launch(launchOptions);
-
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.setViewport({ width: 1280, height: 800 });
-
-        try {
-            console.log('  🌐 Bing Search...');
-            await page.goto(`https://www.bing.com/search?q=${encodeURIComponent(query)}`, {
-                waitUntil: 'domcontentloaded',
-                timeout: 15000
-            });
-            await page.waitForSelector('li.b_algo', { timeout: 8000 }).catch(() => { });
-
-            const bingDomains = await page.evaluate(() => {
-                const domains = [];
-                document.querySelectorAll('li.b_algo').forEach(el => {
-                    const cite = el.querySelector('cite');
-                    if (cite) {
-                        const text = cite.textContent.trim().replace(/^https?:\/\//, '').split(/[\s\/›>]/)[0];
-                        if (text && text.includes('.')) domains.push(text);
-                    }
-                    const link = el.querySelector('h2 a');
-                    if (link && link.href) {
-                        try { domains.push(new URL(link.href).hostname); } catch (e) { }
-                    }
-                });
-                return domains;
-            });
-            bingDomains.forEach(d => addDomain(d));
-            console.log(`  ✅ Bing: ${bingDomains.length} links → ${Object.keys(domainStats).length} unique domains`);
-        } catch (err) { console.warn('  ❌ Bing:', err.message); }
-
-        if (Object.keys(domainStats).length < 5) {
-            try {
-                console.log('  🌐 DuckDuckGo Search...');
-                await page.goto(`https://duckduckgo.com/?q=${encodeURIComponent(query)}`, {
-                    waitUntil: 'networkidle2',
-                    timeout: 15000
-                });
-                await new Promise(r => setTimeout(r, 2000));
-
-                const ddgDomains = await page.evaluate(() => {
-                    const domains = [];
-                    const links = document.querySelectorAll('a[data-testid="result-title-a"], .result__a, article a[href]');
-                    links.forEach(el => {
-                        if (el.href && el.href.startsWith('http') && !el.href.includes('duckduckgo')) {
-                            try { domains.push(new URL(el.href).hostname); } catch (e) { }
-                        }
-                    });
-                    return domains;
-                });
-                ddgDomains.forEach(d => addDomain(d));
-                console.log(`  ✅ DDG: ${ddgDomains.length} links → total ${Object.keys(domainStats).length} unique domains`);
-            } catch (err) { console.warn('  ❌ DDG:', err.message); }
-        }
-
-        await browser.close();
-        browser = null;
-
-        const sortedResults = Object.entries(domainStats)
-            .map(([domain, stats]) => ({ domain, ...stats }))
-            .sort((a, b) => {
-                if (b.count !== a.count) return b.count - a.count;
-                return a.firstRank - b.firstRank;
-            })
-            .slice(0, 5)
-            .map(item => ({ domain: item.domain, count: item.count }));
-
-        console.log('✅ Top Competitors:', sortedResults.map(d => d.domain));
-        res.json({ competitors: sortedResults });
-
-    } catch (error) {
-        console.error('Competitor Error:', error.message);
-        if (browser) await browser.close().catch(() => { });
-        res.json({ competitors: [] });
-    }
+    // Return empty results since scraper is removed to favor official APIs
+    res.json({ competitors: [] });
 });
 
 // ==================== SITE AUDIT ENDPOINT (Cheerio + Axios) ====================
@@ -558,7 +456,6 @@ app.get('/api/audit', async (req, res) => {
         });
 
     } catch (error) {
-        try { if (browser) await browser.close(); } catch (_) { }
         console.error('Audit Error:', error.message);
         return res.status(500).json({ error: 'Audit Failed', details: error.message });
     }
@@ -566,162 +463,21 @@ app.get('/api/audit', async (req, res) => {
 
 
 
-// ==================== POSITION TRACKER ENDPOINT (Puppeteer Stealth + Google) ====================
+// ==================== POSITION TRACKER ENDPOINT (Legacy Scraper Removed) ====================
 app.post('/api/track-position', async (req, res) => {
     const { keyword, domain, region = 'us' } = req.body;
     if (!keyword || !domain) return res.status(400).json({ error: 'Missing keyword or domain' });
 
-    console.log(`🎯 Tracking position for "${keyword}" | domain: ${domain} | region: ${region}`);
+    console.log(`🎯 Position Tracker (Stub) for: "${keyword}" | domain: ${domain}`);
 
-    const cleanDomain = domain.replace(/^www\./, '').toLowerCase();
-
-    // Region to Google TLD and parameters
-    const regionConfig = {
-        'us': { tld: 'com', gl: 'us', hl: 'en' },
-        'in': { tld: 'co.in', gl: 'in', hl: 'en' },
-        'uk': { tld: 'co.uk', gl: 'uk', hl: 'en' },
-        'ca': { tld: 'ca', gl: 'ca', hl: 'en' },
-        'au': { tld: 'com.au', gl: 'au', hl: 'en' }
-    };
-
-    const config = regionConfig[region] || regionConfig['us'];
-    let allResults = [];
-
-    const isDomainMatch = (target, result) => {
-        if (!target || !result) return false;
-        const t = target.toLowerCase().replace(/^www\./, '');
-        const r = result.toLowerCase().replace(/^www\./, '');
-        // Exact match or subdomain match
-        return r === t || r.endsWith('.' + t) || t.endsWith('.' + r);
-    };
-
-    try {
-        // STRATEGY 1: Puppeteer Stealth (Headless)
-        console.log(`  🔍 Searching Google ${config.tld.toUpperCase()} (Headless Stealth)...`);
-        const puppeteerExtra = require('puppeteer-extra');
-        const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-        puppeteerExtra.use(StealthPlugin());
-
-        const launchOptions = {
-            headless: true,
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        };
-
-        const browser = await puppeteerExtra.launch(launchOptions);
-
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
-
-        try {
-            // Use localized Google URL
-            const googleUrl = `https://www.google.${config.tld}/search?q=${encodeURIComponent(keyword)}&gl=${config.gl}&hl=${config.hl}&num=50`;
-            await page.goto(googleUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await new Promise(r => setTimeout(r, 3000));
-
-            const googleResults = await page.evaluate(() => {
-                const items = [];
-                document.querySelectorAll('div.g, div[data-sokoban-container]').forEach(el => {
-                    const linkEl = el.querySelector('a[href^="http"]');
-                    if (!linkEl) return;
-
-                    const href = linkEl.href;
-                    let dom = '';
-                    try { dom = new URL(href).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { }
-
-                    if (dom && dom.includes('.') && (!dom.includes('google.') || dom.includes('sites.google'))) {
-                        const titleEl = el.querySelector('h3');
-                        items.push({
-                            url: href,
-                            domain: dom,
-                            title: titleEl ? titleEl.textContent.trim() : linkEl.textContent.trim()
-                        });
-                    }
-                });
-                return items;
-            });
-
-            if (googleResults.length > 0) {
-                allResults = googleResults;
-                console.log(`  ✅ Google returned ${allResults.length} results.`);
-            }
-        } catch (e) {
-            console.warn(`  ⚠️ Google scraper failed: ${e.message}`);
-        } finally {
-            await browser.close();
-        }
-
-        // STRATEGY 2: DuckDuckGo Fallback (if Google fails)
-        if (allResults.length === 0) {
-            console.log(`  ⚠️ Google failed or blocked. Trying DuckDuckGo...`);
-            const browser = await puppeteerExtra.launch({ headless: true, args: ['--no-sandbox'] });
-            const page = await browser.newPage();
-            try {
-                await page.goto(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
-                allResults = await page.evaluate(() => {
-                    const items = [];
-                    document.querySelectorAll('.result').forEach(el => {
-                        const linkEl = el.querySelector('a.result__a');
-                        if (linkEl && linkEl.href) {
-                            let href = linkEl.href;
-                            try { const uddg = new URL(href).searchParams.get('uddg'); if (uddg) href = decodeURIComponent(uddg); } catch (e) { }
-                            let dom = '';
-                            try { dom = new URL(href).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { }
-                            if (dom && dom.includes('.') && !dom.includes('duckduckgo.com')) {
-                                items.push({ url: href, domain: dom, title: linkEl.textContent.trim() });
-                            }
-                        }
-                    });
-                    return items;
-                });
-                console.log(`  ✅ DuckDuckGo returned ${allResults.length} results.`);
-            } catch (err) {
-                console.warn(`  ❌ DuckDuckGo also failed.`);
-            } finally {
-                await browser.close();
-            }
-        }
-
-        if (allResults.length === 0) {
-            throw new Error('All search engines failed. Please try again in a few minutes.');
-        }
-
-        // Remove duplicates
-        const seen = new Set();
-        allResults = allResults.filter(r => {
-            if (seen.has(r.domain)) return false;
-            seen.add(r.domain);
-            return true;
-        });
-
-        // Find the ranking with TIGHT MATCHING
-        let rank = null;
-        for (let i = 0; i < allResults.length; i++) {
-            if (isDomainMatch(cleanDomain, allResults[i].domain)) {
-                rank = i + 1;
-                break;
-            }
-        }
-
-        const competitors = allResults
-            .filter(r => !isDomainMatch(cleanDomain, r.domain))
-            .slice(0, 10)
-            .map(r => ({ domain: r.domain, url: r.url, title: r.title }));
-
-        console.log(`  🏆 Final Rank: ${rank || 'Not Found'}`);
-
-        res.json({
-            keyword,
-            domain: cleanDomain,
-            region,
-            rank,
-            totalResults: allResults.length,
-            competitors
-        });
-    } catch (error) {
-        console.error('Position Tracker Error:', error.message);
-        res.status(500).json({ error: 'Position tracking failed', details: error.message });
-    }
+    res.json({
+        keyword,
+        domain,
+        region,
+        rank: null,
+        totalResults: 0,
+        competitors: []
+    });
 });
 
 // ==================== AUTHORITY CHECKER ENDPOINT (Mock + Signals) ====================
@@ -747,51 +503,12 @@ app.get('/api/authority', async (req, res) => {
     }
 });
 
-// ==================== BACKLINK MONITOR ENDPOINT (Search-based discovery) ====================
+// ==================== BACKLINK MONITOR ENDPOINT (Legacy Scraper Removed) ====================
 app.get('/api/backlinks', async (req, res) => {
     const { domain } = req.query;
     if (!domain) return res.status(400).json({ error: 'Missing domain' });
-
-    console.log(`🔗 Monitoring Backlinks for: ${domain}`);
-
-    let browser = null;
-    try {
-        browser = await puppeteer.launch({
-            headless: 'new',
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
-        const page = await browser.newPage();
-
-        // Strategy: Search for the domain as a string to find mentions/links
-        const searchUrl = `https://www.bing.com/search?q=%22${encodeURIComponent(domain)}%22+-site%3A${encodeURIComponent(domain)}`;
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-
-        const mentions = await page.evaluate((targetDomain) => {
-            const results = [];
-            document.querySelectorAll('li.b_algo h2 a').forEach(el => {
-                try {
-                    const url = new URL(el.href);
-                    if (!url.hostname.includes(targetDomain)) {
-                        results.push({
-                            source: url.hostname,
-                            targetUrl: el.href,
-                            title: el.innerText.trim(),
-                            type: Math.random() > 0.5 ? 'Content' : 'Directory',
-                            status: 'New'
-                        });
-                    }
-                } catch (e) { }
-            });
-            return results;
-        }, domain);
-
-        await browser.close();
-        res.json({ domain, backlinks: mentions.slice(0, 15) });
-    } catch (error) {
-        if (browser) await browser.close();
-        res.status(500).json({ error: 'Backlink scan failed' });
-    }
+    console.log(`🔗 Backlink Monitor (Stub) for: ${domain}`);
+    res.json({ domain, backlinks: [] });
 });
 
 // ==================== VIEWSTATS SCRAPER ENDPOINT (Real Browser - Cloudflare Bypass) ====================
