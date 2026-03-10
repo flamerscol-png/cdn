@@ -696,7 +696,7 @@ async function getViewStatsData(handle) {
 
 
 app.post('/api/youtube/strategy', async (req, res) => {
-    const { handle, competitorHandle } = req.body;
+    const { handle, competitorHandle, viewStatsData } = req.body;
     if (!handle) return res.status(400).json({ success: false, error: 'Target handle is required' });
 
     const axios = require('axios');
@@ -736,10 +736,11 @@ app.post('/api/youtube/strategy', async (req, res) => {
         };
 
         // 2. Fetch Data
+        // If viewStatsData is passed from frontend, skip the backend fetch (which is likely blocked)
         const [yourData, competitorAnalytics, viewStats] = await Promise.all([
             fetchChannel(handle),
             competitorHandle ? fetchChannel(competitorHandle) : Promise.resolve(null),
-            getViewStatsData(handle)
+            viewStatsData ? Promise.resolve(viewStatsData) : getViewStatsData(handle)
         ]);
 
         if (!yourData) throw new Error(`Channel ${handle} not found`);
