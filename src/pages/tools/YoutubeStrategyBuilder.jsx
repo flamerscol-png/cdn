@@ -45,6 +45,112 @@ const calculateSocialBladeRank = (subscribers) => {
     return "500,000th+";
 };
 
+// --- VIEWSTATS FRONTEND INTEGRATION (Bypassing Render IP blocks) ---
+const decryptViewStats = async (encryptedBuffer) => {
+    try {
+        const VS_IV_B64 = "Wzk3LCAxMDksIC0xMDAsIC05MCwgMTIyLCAtMTI0LCAxMSwgLTY5LCAtNDIsIDExNSwgLTU4LCAtNjcsIDQzLCAtNzUsIDMxLCA3NF0=";
+        const VS_KEY_B64 = "Wy0zLCAtMTEyLCAxNSwgLTEyNCwgLTcxLCAzMywgLTg0LCAxMDksIDU3LCAtMTI3LCAxMDcsIC00NiwgMTIyLCA0OCwgODIsIC0xMjYsIDQ3LCA3NiwgLTEyNywgNjUsIDc1LCAxMTMsIC0xMjEsIDg5LCAtNzEsIDUwLCAtODMsIDg2LCA5MiwgLTQ2LCA0OSwgNTZd";
+
+        const keyArr = JSON.parse(atob(VS_KEY_B64));
+        const ivArr = JSON.parse(atob(VS_IV_B64));
+
+        const keyData = new Uint8Array(keyArr.map(b => b & 0xFF));
+        const ivData = new Uint8Array(ivArr.map(b => b & 0xFF));
+
+        const encryptedData = new Uint8Array(encryptedBuffer);
+
+        const key = await window.crypto.subtle.importKey(
+            'raw',
+            keyData,
+            { name: 'AES-GCM' },
+            false,
+            ['decrypt']
+        );
+
+        const decrypted = await window.crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: ivData, tagLength: 128 },
+            key,
+            encryptedData
+        );
+
+        return JSON.parse(new TextDecoder().decode(decrypted));
+    } catch (e) {
+        console.error("ViewStats Decryption failed:", e);
+        return null;
+    }
+};
+
+const fetchViewStatsDirect = async (handle) => {
+    try {
+        const VS_API_TOKEN = '32ev9m0qggn227ng1rgpbv5j8qllas8uleujji3499g9had6oj7f0ltnvrgi00cq';
+        const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
+        const baseUrl = 'https://api.viewstats.com';
+
+        const apiReq = async (path) => {
+            try {
+                const res = await fetch(`${baseUrl}${path}`, {
+                    headers: {
+                        'Authorization': `Bearer ${VS_API_TOKEN}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (!res.ok) return null;
+
+                const contentType = res.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const data = await res.json();
+                    return data.data || data;
+                } else {
+                    const buffer = await res.arrayBuffer();
+                    const data = await decryptViewStats(buffer);
+                    return data?.data || data;
+                }
+            } catch (e) {
+                console.error(`ViewStats Fetch failed for ${path}:`, e);
+                return null;
+            }
+        };
+
+        const [channel, stats, split] = await Promise.all([
+            apiReq(`/channels/${cleanHandle}`),
+            apiReq(`/channels/${cleanHandle}/stats?range=30&withRevenue=true`),
+            apiReq(`/channels/${cleanHandle}/longsAndShorts`)
+        ]);
+
+        if (!channel) return null;
+
+        let last30Views = 0;
+        let earnedLow = 0;
+        let earnedHigh = 0;
+
+        if (Array.isArray(stats)) {
+            stats.forEach(day => {
+                last30Views += (day.viewCountDelta || 0);
+                earnedLow += (day.estimatedLowRevenueUsd || 0);
+                earnedHigh += (day.estimatedHighRevenueUsd || 0);
+            });
+        }
+
+        return {
+            grade: channel.grade || "A",
+            name: channel.displayName || channel.name,
+            uploads: (channel.videoCount || 0).toLocaleString(),
+            country: channel.country || "US",
+            channelType: channel.category || "YouTube",
+            userCreated: channel.publishedAt ? new Date(channel.publishedAt).getFullYear().toString() : "N/A",
+            subRank: (channel.globalSubscribersRanking || 0).toLocaleString(),
+            monthlyEarnings: earnedLow > 0 ? `$${earnedLow.toLocaleString()} - $${earnedHigh.toLocaleString()}` : "$0 - $0",
+            last30DayViews: last30Views > 0 ? last30Views.toLocaleString() : (channel.vpv30 || 0).toLocaleString(),
+            shortsVsLongs: split ? `Shorts: ${split.shorts?.percentage || 0}% | Longs: ${split.longs?.percentage || 0}%` : "N/A",
+            subscribersLast30Days: (channel.subs30 || 0).toLocaleString(),
+            source: 'ViewStats (Direct Browser)'
+        };
+    } catch (e) {
+        console.error("fetchViewStatsDirect Error:", e);
+        return null;
+    }
+};
+
 const YoutubeStrategyBuilder = () => {
     const navigate = useNavigate();
     const [handle, setHandle] = useState('');
@@ -100,12 +206,19 @@ const YoutubeStrategyBuilder = () => {
         setSocialBladeData(null);
 
         try {
-            setLoadingStep('Scraping YouTube & AI Engine...');
+            setLoadingStep('Fetching Channel Analytics...');
+            const vData = await fetchViewStatsDirect(handle);
+            if (vData) console.log("✅ ViewStats pre-fetched successfully");
 
+            setLoadingStep('Generating Growth Strategy (AI)...');
             const response = await fetch(`${API_BASE_URL}/api/youtube/strategy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ handle, competitorHandle })
+                body: JSON.stringify({
+                    handle,
+                    competitorHandle,
+                    viewStatsData: vData // Send pre-fetched data to backend
+                })
             });
 
             if (!response.ok) {
@@ -195,14 +308,17 @@ const YoutubeStrategyBuilder = () => {
                                 </div>
                                 <div className="bg-[#111] border border-white/10 rounded-xl p-4">
                                     <h4 className="text-[#ff0000] text-[10px] uppercase mb-1">30-Day Views</h4>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <h3 className="text-xl font-black text-[#ff0000]">{socialBladeData?.last30DayViews || liveData.yours.thirtyDayViews.toLocaleString()}</h3>
                                         {socialBladeData?.viewsComparison && socialBladeData.viewsComparison !== 'N/A' && (
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${socialBladeData.viewsComparison.startsWith('+') ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
-                                                {socialBladeData.viewsComparison.startsWith('-') ? '▼' : '▲'} {socialBladeData.viewsComparison.replace(/[+-]/, '')}
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${socialBladeData.viewsComparison.startsWith('-') ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>
+                                                {socialBladeData.viewsComparison.startsWith('-') ? '▼' : '▲'} {socialBladeData.viewsComparison.replace(/^[+-]/, '')}
                                             </span>
                                         )}
                                     </div>
+                                    {socialBladeData?.comparisonDate && (
+                                        <p className="text-gray-500 text-[9px] mt-1">vs {socialBladeData.comparisonDate}</p>
+                                    )}
                                 </div>
                                 <div className="bg-[#111] border border-white/10 rounded-xl p-4 border-l-4 border-l-green-500">
                                     <h4 className="text-green-500 text-[10px] uppercase mb-1">Grade</h4>
@@ -251,14 +367,17 @@ const YoutubeStrategyBuilder = () => {
                                             </span>
                                         </div>
 
-                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-6">
                                             {[
                                                 { label: "Uploads", value: socialBladeData.uploads },
                                                 { label: "Country", value: socialBladeData.country },
                                                 { label: "Channel Type", value: socialBladeData.channelType },
                                                 { label: "Created", value: socialBladeData.userCreated },
                                                 { label: "Sub Rank", value: socialBladeData.subRank },
-                                                { label: "View Rank", value: socialBladeData.sbRank },
+                                                ...(socialBladeData.shortsVsLongs ? [{ label: "Format Split", value: socialBladeData.shortsVsLongs.replace('|', '/') }] : []),
+                                                ...(socialBladeData.subscribersLast30Days ? [{ label: "30-Day Subs", value: socialBladeData.subscribersLast30Days }] : []),
+                                                ...(socialBladeData.averages?.dailyViews ? [{ label: "Daily Avg Views", value: socialBladeData.averages.dailyViews }] : []),
+                                                ...(socialBladeData.averages?.weeklyViews ? [{ label: "Weekly Avg Views", value: socialBladeData.averages.weeklyViews }] : []),
                                             ].map((item, idx) => (
                                                 <div key={idx} className="flex flex-col gap-1">
                                                     <p className="text-[#ff0000] text-[9px] font-black uppercase tracking-tighter">{item.label}</p>
