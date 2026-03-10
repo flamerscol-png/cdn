@@ -35,6 +35,17 @@ const calculateSocialBladeGrade = (views) => {
     return "C-";
 };
 
+const formatCompactNumber = (number) => {
+    if (number === null || number === undefined) return "0";
+    const num = typeof number === 'string' ? parseInt(number.replace(/,/g, '')) : number;
+    if (isNaN(num)) return "0";
+
+    return new Intl.NumberFormat('en-US', {
+        notation: 'compact',
+        maximumFractionDigits: 1
+    }).format(num);
+};
+
 const calculateSocialBladeRank = (subscribers) => {
     const subCount = parseInt(String(subscribers).replace(/,/g, '')) || 0;
     if (subCount > 100000000) return "25th";
@@ -111,10 +122,11 @@ const fetchViewStatsDirect = async (handle) => {
             }
         };
 
-        const [channel, stats, split] = await Promise.all([
+        const [channel, stats, split, averages] = await Promise.all([
             apiReq(`/channels/${cleanHandle}`),
             apiReq(`/channels/${cleanHandle}/stats?range=30&withRevenue=true`),
-            apiReq(`/channels/${cleanHandle}/longsAndShorts`)
+            apiReq(`/channels/${cleanHandle}/longsAndShorts`),
+            apiReq(`/channels/${cleanHandle}/averages`)
         ]);
 
         if (!channel) return null;
@@ -134,15 +146,20 @@ const fetchViewStatsDirect = async (handle) => {
         return {
             grade: channel.grade || "A",
             name: channel.displayName || channel.name,
-            uploads: (channel.videoCount || 0).toLocaleString(),
+            uploads: formatCompactNumber(channel.videoCount || 0),
             country: channel.country || "US",
             channelType: channel.category || "YouTube",
             userCreated: channel.publishedAt ? new Date(channel.publishedAt).getFullYear().toString() : "N/A",
-            subRank: (channel.globalSubscribersRanking || 0).toLocaleString(),
-            monthlyEarnings: earnedLow > 0 ? `$${earnedLow.toLocaleString()} - $${earnedHigh.toLocaleString()}` : "$0 - $0",
-            last30DayViews: last30Views > 0 ? last30Views.toLocaleString() : (channel.vpv30 || 0).toLocaleString(),
+            subRank: formatCompactNumber(channel.globalSubscribersRanking || 0),
+            monthlyEarnings: earnedLow > 0 ? `$${formatCompactNumber(earnedLow)} - $${formatCompactNumber(earnedHigh)}` : "$0 - $0",
+            last30DayViews: last30Views > 0 ? formatCompactNumber(last30Views) : formatCompactNumber(channel.vpv30 || 0),
             shortsVsLongs: split ? `Shorts: ${split.shorts?.percentage || 0}% | Longs: ${split.longs?.percentage || 0}%` : "N/A",
-            subscribersLast30Days: (channel.subs30 || 0).toLocaleString(),
+            subscribersLast30Days: formatCompactNumber(channel.subs30 || 0),
+            averages: {
+                dailyViews: averages?.daily ? formatCompactNumber(averages.daily) : "—",
+                weeklyViews: averages?.weekly ? formatCompactNumber(averages.weekly) : "—"
+            },
+            yearlyEarnings: earnedLow > 0 ? `$${formatCompactNumber(earnedLow * 12)} - $${formatCompactNumber(earnedHigh * 12)}` : "$0 - $0",
             source: 'ViewStats (Direct Browser)'
         };
     } catch (e) {
@@ -304,12 +321,16 @@ const YoutubeStrategyBuilder = () => {
                             <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div className="bg-[#111] border border-white/10 rounded-xl p-4">
                                     <h4 className="text-gray-500 text-[10px] uppercase mb-1">Subscribers</h4>
-                                    <h3 className="text-xl font-black text-white">{liveData.yours.subscribers}</h3>
+                                    <h3 className="text-xl font-black text-white">{formatCompactNumber(liveData.yours.subscribers)}</h3>
                                 </div>
                                 <div className="bg-[#111] border border-white/10 rounded-xl p-4">
                                     <h4 className="text-[#ff0000] text-[10px] uppercase mb-1">30-Day Views</h4>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <h3 className="text-xl font-black text-[#ff0000]">{socialBladeData?.last30DayViews || liveData.yours.thirtyDayViews.toLocaleString()}</h3>
+                                        <h3 className="text-xl font-black text-[#ff0000]">
+                                            {socialBladeData?.last30DayViews ?
+                                                (socialBladeData.last30DayViews.includes(',') || !isNaN(socialBladeData.last30DayViews) ? formatCompactNumber(socialBladeData.last30DayViews) : socialBladeData.last30DayViews) :
+                                                formatCompactNumber(liveData.yours.thirtyDayViews)}
+                                        </h3>
                                         {socialBladeData?.viewsComparison && socialBladeData.viewsComparison !== 'N/A' && (
                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${socialBladeData.viewsComparison.startsWith('-') ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>
                                                 {socialBladeData.viewsComparison.startsWith('-') ? '▼' : '▲'} {socialBladeData.viewsComparison.replace(/^[+-]/, '')}
