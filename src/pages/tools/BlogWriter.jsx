@@ -23,40 +23,84 @@ const BlogWriter = () => {
         setCopied(false);
         setLoadingMessage('Initializing AI models...');
 
-        // Simulate API delay and progress
-        setTimeout(() => setLoadingMessage('Analyzing topic semantics...'), 1500);
-        setTimeout(() => setLoadingMessage('Structuring headings and flow...'), 3000);
-        setTimeout(() => setLoadingMessage('Drafting content with selected tone...'), 4500);
-        setTimeout(() => setLoadingMessage('Optimizing for search intent...'), 6000);
+        // Progress messages
+        const progressSteps = [
+            'Analyzing topic semantics...',
+            'Structuring headings and flow...',
+            'Drafting content with selected tone...',
+            'Optimizing for search intent...'
+        ];
+
+        progressSteps.forEach((msg, i) => {
+            setTimeout(() => setLoadingMessage(msg), (i + 1) * 1500);
+        });
 
         try {
-            // Replace with your actual Gemini/Vertex AI endpoint
-            const response = await fetch(`${API_BASE_URL}/api/generate-blog`, {
+            const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+            if (!GROQ_API_KEY) throw new Error("Missing Groq API Key (VITE_GROQ_API_KEY)");
+
+            const prompt = `
+                Act as a Top-1% SEO Specialist and Subject Matter Expert. Write a 'Power Page' that is designed to outrank the current TOP-3 Google results for the given topic.
+                
+                TOPIC: ${topic}
+                KEYWORDS: ${keywords || 'SEO basics, quality content'}
+                TONE: ${tone || 'Professional'}
+                
+                GOAL: Give the user a UNIQUE perspective. Don't just repeat what's on Wikipedia. Add "Expert Secrets," "Common Myths," and "Future Predictions" related to the topic.
+                
+                OUTPUT REQUIREMENTS:
+                1. Title: Catchy, search-optimized, and high-CTR.
+                2. Content: Structure it like a professional long-form guide. Use H2/H3 tags, bold important concepts, and use bullet points for readability.
+                3. Engagement: Use 'Bucket Brigades' (short, punchy lines) to keep the reader scrolling.
+                4. Length: Minimum 1200 words of pure utility and value.
+                
+                Output ONLY this JSON structure:
+                {
+                    "title": "Powerful Headline Here",
+                    "content": "HTML_STRING_WITH_TAGS_AND_FORMATTING",
+                    "wordCount": 1200,
+                    "seoScore": 98
+                }
+            `;
+
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ topic, keywords, tone })
+                headers: {
+                    'Authorization': `Bearer ${GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [
+                        { role: 'system', content: 'You are a professional SEO writer. Output ONLY strict JSON.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    response_format: { type: "json_object" }
+                })
             });
 
-            if (!response.ok) throw new Error('Failed to generate content');
-            const data = await response.json();
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || 'Failed to generate content');
+            }
 
-            setResult(data);
+            const data = await response.json();
+            const resultStr = data.choices[0].message.content;
+            setResult(JSON.parse(resultStr));
         } catch (error) {
             console.error('Error:', error);
-            // Fallback mock data for demonstration if backend fails
-            setTimeout(() => {
-                setResult({
-                    title: `The Ultimate Guide to ${topic}`,
-                    content: `<h2>Understanding ${topic}</h2>\n<p>This is a professionally generated, structured, and SEO-optimized blog post about ${topic}. It naturally integrates your targeted keywords: ${keywords}.</p>\n<h3>Why It Matters</h3>\n<p>In today's competitive digital landscape, mastering ${topic} is crucial for sustainable growth.</p>\n<h3>Actionable Strategies</h3>\n<ul>\n<li>Focus on search intent matching.</li>\n<li>Ensure long-form comprehensiveness.</li>\n<li>Utilize semantic variations of your primary keywords.</li>\n</ul>\n<p>Conclusion: By implementing these strategies, you'll see a significant uplift in organic traction.</p>`,
-                    wordCount: 850,
-                    seoScore: 92
-                });
-                setLoading(false);
-            }, 7500);
-            return;
+            setResult({
+                title: "Error Generating Post",
+                content: `<div class="p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
+                    <h3>AI Generation Failed</h3>
+                    <p>${error.message}. Please verify your API key and network connection.</p>
+                </div>`,
+                wordCount: 0,
+                seoScore: 0
+            });
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     const copyToClipboard = () => {

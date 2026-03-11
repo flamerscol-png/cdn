@@ -36,6 +36,16 @@ const YoutubeTools = () => {
             title: "Description Builder",
             desc: "Format perfectly optimized video descriptions with timestamps and links.",
             link: "/tools/youtube-description-generator",
+            active: true,
+            tag: "YOUTUBE"
+        },
+        {
+            icon: "🎨",
+            title: "Thumbnail Suggester",
+            desc: "AI-generated visual concepts, high-impact text, and color palettes for viral thumbnails.",
+            link: "/tools/youtube-thumbnail-suggester",
+            active: true,
+            tag: "AI POWERED"
         },
         {
             icon: "🗺️",
@@ -64,7 +74,7 @@ const YoutubeTools = () => {
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-7xl mx-auto w-full">
-            <AdBanner size="leaderboard" />
+                <AdBanner size="leaderboard" />
                 <motion.div
                     initial="hidden"
                     animate="visible"

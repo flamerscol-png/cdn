@@ -106,18 +106,12 @@ const decryptViewStats = async (encryptedBuffer) => {
 
 const fetchViewStatsDirect = async (handle) => {
     try {
-        const VS_API_TOKEN = '32ev9m0qggn227ng1rgpbv5j8qllas8uleujji3499g9had6oj7f0ltnvrgi00cq';
         const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
-        const baseUrl = 'https://api.viewstats.com';
 
         const apiReq = async (path) => {
             try {
-                const res = await fetch(`${baseUrl}${path}`, {
-                    headers: {
-                        'Authorization': `Bearer ${VS_API_TOKEN}`,
-                        'Accept': 'application/json'
-                    }
-                });
+                // Use backend proxy to avoid CORS in production
+                const res = await fetch(`${API_BASE_URL}/api/proxy/viewstats?path=${encodeURIComponent(path)}`);
                 if (!res.ok) return null;
 
                 const contentType = res.headers.get('content-type') || '';
@@ -130,7 +124,7 @@ const fetchViewStatsDirect = async (handle) => {
                     return data?.data || data;
                 }
             } catch (e) {
-                console.error(`ViewStats Fetch failed for ${path}:`, e);
+                console.error(`ViewStats Proxy Fetch failed for ${path}:`, e);
                 return null;
             }
         };
@@ -268,46 +262,85 @@ const YoutubeStrategyBuilder = () => {
         setSocialBladeData(null);
 
         try {
+            const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+            if (!GROQ_API_KEY) throw new Error("Missing Groq API Key (VITE_GROQ_API_KEY)");
+
             setLoadingStep('Fetching Channel Analytics...');
             const vData = await fetchViewStatsDirect(handle);
-            if (vData) console.log("✅ ViewStats pre-fetched successfully");
+            let compData = null;
+            if (competitorHandle) {
+                setLoadingStep('Fetching Competitor Analytics...');
+                compData = await fetchViewStatsDirect(competitorHandle);
+            }
 
             setLoadingStep('Generating Growth Strategy (AI)...');
-            const response = await fetch(`${API_BASE_URL}/api/youtube/strategy`, {
+
+            const prompt = `
+                Act as a world-class YouTube Growth & Viral Engineer (like MrBeast's strategist). 
+                Analyze the target (@${handle}) and competitor (@${competitorHandle || 'None'}) for a 10x growth roadmap.
+                
+                TARGET DATA:
+                - Uploads: ${vData?.uploads || 'N/A'}
+                - Views/30d: ${vData?.last30DayViews || 'N/A'}
+                - Grade: ${vData?.grade || 'N/A'}
+                
+                OUTPUT REQUIREMENTS (Strict JSON):
+                1. contentStrategy: { optimalTimeLimit: "MM:SS", remixedIdeas: [{ title, concept, thumbnailHook, hookLogic }] }
+                2. monthlyPerformance: { performanceVerdict: "Description" }
+                3. marketAnalysis: { competitionLevel: "Low/Mid/High", verifiedCompetitors: [{ title, description }], marketGap: "Detailed Gap" }
+                4. audienceDemand: { topSearchTerms: ["term1", "term2"], currentTrend: "Description" }
+                5. viralHooks: ["Hook 1", "Hook 2", "Hook 3"]
+                6. contentGaps: ["Gap 1", "Gap 2"]
+                7. executionPlan: ["Month 1", "Month 2", "Month 3"]
+                
+                Output ONLY this JSON structure:
+                {
+                    "contentStrategy": { "optimalTimeLimit": "...", "remixedIdeas": [...] },
+                    "monthlyPerformance": { "performanceVerdict": "..." },
+                    "marketAnalysis": { "competitionLevel": "...", "verifiedCompetitors": [...], "marketGap": "..." },
+                    "audienceDemand": { "topSearchTerms": [...], "currentTrend": "..." },
+                    "viralHooks": [...],
+                    "contentGaps": [...],
+                    "executionPlan": [...]
+                }
+            `;
+
+            const aiResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Authorization': `Bearer ${GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
-                    handle,
-                    competitorHandle,
-                    viewStatsData: vData // Send pre-fetched data to backend
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [
+                        { role: 'system', content: 'You are a YouTube viral engineer. Output ONLY strict JSON.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    response_format: { type: "json_object" }
                 })
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to generate strategy.");
+            if (!aiResponse.ok) {
+                const errorData = await aiResponse.json();
+                throw new Error(errorData.error?.message || 'Failed to generate content');
             }
 
-            const data = await response.json();
+            const data = await aiResponse.json();
+            const resultStr = data.choices[0].message.content;
+            const parsedStrategy = JSON.parse(resultStr);
 
             // 1. Process Live Data
             setLiveData({
-                yours: data.channelData,
-                competitor: data.competitorData
+                yours: vData,
+                competitor: compData
             });
 
-            // 2. Process Social Blade Data
-            if (data.socialBlade) {
-                setSocialBladeData({
-                    ...data.socialBlade,
-                    earnings: data.socialBlade.monthlyEarnings || "$0 - $0",
-                    grade: data.socialBlade.grade || "C",
-                    subRank: data.socialBlade.subRank || "N/A"
-                });
-            }
+            // 2. Process Social Blade Data (Mocking since we moved to ViewStats)
+            setSocialBladeData(vData);
 
             // 3. Process Strategy
-            setStrategy(data.strategy);
+            setStrategy(parsedStrategy);
 
             // 4. Deduct Powers
             await deductPowers(auth.currentUser.uid, STRATEGY_COST);
@@ -349,46 +382,64 @@ const YoutubeStrategyBuilder = () => {
                                 <label className="text-gray-500 font-bold text-xs uppercase mb-2 flex items-center gap-2"><FaCrosshairs /> Competitor (Optional)</label>
                                 <input type="text" value={competitorHandle} onChange={(e) => setCompetitorHandle(e.target.value)} placeholder="@Veritasium" className="w-full bg-transparent text-white text-lg outline-none font-bold" />
                             </div>
-                            <button type="submit" disabled={isGenerating || loadingUser} className="w-full bg-[#ff0000] hover:bg-[#ff0000]/80 text-white font-black py-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg">
-                                {isGenerating ? <><FaSpinner className="animate-spin" /> {loadingStep || 'Analyzing...'}</> : <><FaMagic /> Build Strategy ({STRATEGY_COST} 🔥)</>}
-                            </button>
-                        </form>
-                    </div>
 
-                    <div className="lg:col-span-9 flex flex-col gap-8">
+                            <button
+                                type="submit"
+                                disabled={isGenerating || !handle.trim()}
+                                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${isGenerating || !handle.trim() ? 'bg-white/5 text-gray-500 cursor-not-allowed' : 'bg-[#ff0000] text-white hover:brightness-110 active:scale-95 shadow-xl shadow-[#ff0000]/20'}`}
+                            >
+                                {isGenerating ? 'AI Scrutinizing...' : 'Build 10x Strategy'}
+                            </button>
+
+                            <div className="flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                <span>Analysis Cost: 100 🔥</span>
+                            </div>
+                        </form>
+
                         {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-center gap-3">
-                                <span className="text-xl">⚠️</span> {error}
+                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-500 text-xs font-bold flex flex-col gap-2">
+                                <span className="uppercase tracking-widest">⚠️ Strategy Error</span>
+                                <p className="opacity-70 leading-relaxed">{error}</p>
                             </div>
                         )}
 
-                        {liveData && (
-                            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="bg-[#111] border border-white/10 rounded-xl p-4">
-                                    <h4 className="text-gray-500 text-[10px] uppercase mb-1">Subscribers</h4>
-                                    <h3 className="text-xl font-black text-white">{formatCompactNumber(liveData.yours.subscribers)}</h3>
+                        {isGenerating && (
+                            <div className="flex flex-col gap-3">
+                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <motion.div
+                                        className="h-full bg-[#ff0000]"
+                                        initial={{ width: "0%" }}
+                                        animate={{ width: "100%" }}
+                                        transition={{ duration: 15, ease: "linear" }}
+                                    />
                                 </div>
-                                <div className="bg-[#111] border border-white/10 rounded-xl p-4">
-                                    <h4 className="text-[#ff0000] text-[10px] uppercase mb-1">30-Day Views</h4>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <h3 className="text-xl font-black text-[#ff0000]">
-                                            {socialBladeData?.last30DayViews ?
-                                                (socialBladeData.last30DayViews.includes(',') || !isNaN(socialBladeData.last30DayViews) ? formatCompactNumber(socialBladeData.last30DayViews) : socialBladeData.last30DayViews) :
-                                                formatCompactNumber(liveData.yours.thirtyDayViews)}
-                                        </h3>
-                                        {socialBladeData?.viewsComparison && socialBladeData.viewsComparison !== 'N/A' && (
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${socialBladeData.viewsComparison.startsWith('-') ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>
-                                                {socialBladeData.viewsComparison.startsWith('-') ? '▼' : '▲'} {socialBladeData.viewsComparison.replace(/^[+-]/, '')}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {socialBladeData?.comparisonDate && (
-                                        <p className="text-gray-500 text-[9px] mt-1">vs {socialBladeData.comparisonDate}</p>
-                                    )}
+                                <p className="text-[10px] font-black text-[#ff0000] uppercase tracking-widest text-center animate-pulse">{loadingStep}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="lg:col-span-9">
+                        {isGenerating && !strategy && (
+                            <div className="modrinth-card border border-white/5 p-12 h-full flex flex-col items-center justify-center min-h-[500px] text-center">
+                                <div className="w-16 h-16 border-4 border-white/5 border-t-[#ff0000] rounded-full animate-spin mb-8"></div>
+                                <h3 className="text-2xl font-black mb-2 animate-pulse text-[#ff0000]">BUILDING THE BLUEPRINT</h3>
+                                <p className="text-gray-500 font-medium max-w-sm">Comparing metadata, decoding viral patterns, and engineering your content gaps...</p>
+                            </div>
+                        )}
+
+                        {!isGenerating && liveData && (
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                <div className="bg-[#111] border border-[#ff0000]/30 rounded-xl p-4 border-l-4 border-l-[#ff0000]">
+                                    <h4 className="text-[#ff0000] text-[10px] uppercase mb-1">Growth Grade</h4>
+                                    <h3 className="text-2xl font-black text-white">{socialBladeData ? socialBladeData.grade : "..."}</h3>
                                 </div>
-                                <div className="bg-[#111] border border-white/10 rounded-xl p-4 border-l-4 border-l-green-500">
-                                    <h4 className="text-green-500 text-[10px] uppercase mb-1">Grade</h4>
-                                    <h3 className="text-xl font-black text-white">{socialBladeData ? socialBladeData.grade : "..."}</h3>
+                                <div className="bg-[#111] border border-white/10 rounded-xl p-4 border-l-4 border-l-blue-500">
+                                    <h4 className="text-blue-500 text-[10px] uppercase mb-1">Uploads</h4>
+                                    <h3 className="text-xl font-black text-white">{socialBladeData ? socialBladeData.uploads : "..."}</h3>
+                                </div>
+                                <div className="bg-[#111] border border-white/10 rounded-xl p-4 border-l-4 border-l-purple-500">
+                                    <h4 className="text-purple-500 text-[10px] uppercase mb-1">Last 30D Views</h4>
+                                    <h3 className="text-xl font-black text-white">{socialBladeData ? socialBladeData.last30DayViews : "..."}</h3>
                                 </div>
                                 <div className="bg-[#111] border border-white/10 rounded-xl p-4 border-l-4 border-l-amber-500">
                                     <h4 className="text-amber-500 text-[10px] uppercase mb-1">Sub Rank</h4>
@@ -413,11 +464,11 @@ const YoutubeStrategyBuilder = () => {
                                     </div>
                                     <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-5">
                                         <h4 className="text-orange-500 text-xs font-bold uppercase mb-2">⏱️ Optimal Time</h4>
-                                        <h2 className="text-3xl font-black text-white">{strategy.contentStrategy.optimalTimeLimit}</h2>
+                                        <h2 className="text-3xl font-black text-white">{strategy.contentStrategy?.optimalTimeLimit || "N/A"}</h2>
                                     </div>
                                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-5">
                                         <h4 className="text-blue-500 text-xs font-bold uppercase mb-2">📊 Velocity Verdict</h4>
-                                        <p className="text-white text-sm italic">"{strategy.monthlyPerformance.performanceVerdict}"</p>
+                                        <p className="text-white text-sm italic">"{strategy.monthlyPerformance?.performanceVerdict || "Data Analyzed."}"</p>
                                     </div>
                                 </div>
 
@@ -545,7 +596,7 @@ const YoutubeStrategyBuilder = () => {
                                             <div className="mt-auto pt-4">
                                                 <div className="p-3 bg-[#111] rounded-lg border-l-4 border-purple-500">
                                                     <p className="text-gray-400 text-[10px] font-bold uppercase mb-1">Current Trend Meta:</p>
-                                                    <p className="text-white text-xs leading-relaxed">{strategy.audienceDemand.currentTrend}</p>
+                                                    <p className="text-white text-xs leading-relaxed">{strategy.audienceDemand?.currentTrend || "N/A"}</p>
                                                 </div>
                                             </div>
                                         </div>

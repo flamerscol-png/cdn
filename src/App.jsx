@@ -18,6 +18,7 @@ import YoutubeTagGenerator from './pages/tools/YoutubeTagGenerator';
 import YoutubeTitleGenerator from './pages/tools/YoutubeTitleGenerator';
 import YoutubeDescriptionGenerator from './pages/tools/YoutubeDescriptionGenerator';
 import YoutubeStrategyBuilder from './pages/tools/YoutubeStrategyBuilder';
+import ThumbnailGen from './pages/tools/ThumbnailGen';
 
 import ComingSoon from './pages/ComingSoon';
 import SeoTools from './pages/SeoTools';
@@ -57,6 +58,7 @@ function App() {
         <Route path="/tools/youtube-title-generator" element={<YoutubeTitleGenerator />} />
         <Route path="/tools/youtube-description-generator" element={<YoutubeDescriptionGenerator />} />
         <Route path="/tools/youtube-strategy-builder" element={<YoutubeStrategyBuilder />} />
+        <Route path="/tools/youtube-thumbnail-suggester" element={<ThumbnailGen />} />
 
         {/* Business & Utility */}
         <Route path="/calculators" element={<Calculators />} />

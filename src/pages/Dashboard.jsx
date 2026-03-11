@@ -188,6 +188,7 @@ const Dashboard = () => {
                         {[
                             { icon: "🎯", title: "Position Tracker", desc: "Track organic rankings with native precision.", cost: 30, link: "/tools/position-tracker", tag: "ACCURATE" },
                             { icon: "✍️", title: "AI Blog Writer", desc: "Generate professional SEO content instantly.", cost: 150, link: "/tools/blog-writer", tag: "AI POWERED" },
+                            { icon: "🎨", title: "Thumbnail Suggester", desc: "AI-powered viral visual concepts and psychology.", cost: 50, link: "/tools/youtube-thumbnail-suggester", tag: "CREATIVE AI" },
                             { icon: "🗺️", title: "Strategy Builder", desc: "Scale with human-viral psychology logic.", cost: 100, link: "/tools/youtube-strategy-builder", tag: "STRATEGIC" },
                             { icon: "🛡️", title: "Site Auditor", desc: "Deep crawl analysis and technical health.", cost: 50, link: "/tools/site-auditor", tag: "TECHNICAL" }
                         ].map((tool, index) => (
