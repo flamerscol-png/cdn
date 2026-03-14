@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const googleTrends = require('google-trends-api');
+const { connect } = require('puppeteer-real-browser');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -659,8 +660,8 @@ async function viewStatsRequest(path) {
 
 async function getViewStatsData(handle) {
     const cleanHandle = handle.startsWith('@') ? handle : `@${handle}`;
-    console.log(`📡 Fetching ViewStats API for ${cleanHandle}...`);
-
+    
+    console.log(`📡 Fetching ViewStats API (PHP Wrapper Method) for ${cleanHandle}...`);
     try {
         const channel = await viewStatsRequest(`/channels/${cleanHandle}`);
         if (!channel) {
@@ -728,26 +729,45 @@ async function getViewStatsData(handle) {
 
         const subRankValue = channel.globalSubscribersRanking || 0;
 
+        const fmt = (n) => {
+            const num = typeof n === 'string' ? parseFloat(n.replace(/,/g, '')) : (n || 0);
+            if (isNaN(num)) return '0';
+            if (Math.abs(num) >= 1e9) return (num / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+            if (Math.abs(num) >= 1e6) return (num / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (Math.abs(num) >= 1e3) return (num / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+            return num.toFixed(0);
+        };
+
+        const fmtMoney = (n) => {
+            const num = typeof n === 'string' ? parseFloat(n.replace(/,/g, '')) : (n || 0);
+            if (isNaN(num) || num === 0) return '$0';
+            if (Math.abs(num) >= 1e6) return '$' + (num / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (Math.abs(num) >= 1e3) return '$' + (num / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+            return '$' + num.toFixed(0);
+        };
+
         return {
             grade: channel.grade && channel.grade !== 'N/A' ? channel.grade : 'B',
             name: channel.displayName || channel.name,
-            uploads: (channel.videoCount || 0).toLocaleString(),
+            subscribers: fmt(channel.subscriberCount),
+            totalViews: fmt(channel.viewCount),
+            uploads: fmt(channel.videoCount),
             country: channel.country || "US",
             channelType: channel.category || "YouTube",
             userCreated: channel.publishedAt ? new Date(channel.publishedAt).getFullYear().toString() : "N/A",
-            sbRank: (channel.globalViewsRanking || 0).toLocaleString(),
-            subRank: subRankValue.toLocaleString(),
-            viewRank: (channel.globalViewsRanking || 0).toLocaleString(),
-            monthlyEarnings: monthlyEarningsLow > 0 ? `$${monthlyEarningsLow.toLocaleString()} - $${monthlyEarningsHigh.toLocaleString()}` : "$0 - $0",
-            last30DayViews: last30Views > 0 ? last30Views.toLocaleString() : (channel.vpv30 || 0).toLocaleString(),
+            sbRank: fmt(channel.globalViewsRanking),
+            subRank: fmt(subRankValue),
+            viewRank: fmt(channel.globalViewsRanking),
+            monthlyEarnings: monthlyEarningsLow > 0 ? `${fmtMoney(monthlyEarningsLow)} - ${fmtMoney(monthlyEarningsHigh)}` : "$0 - $0",
+            last30DayViews: fmt(last30Views > 0 ? last30Views : (channel.vpv30 || 0)),
             viewsComparison,
             comparisonDate: "Last 30 Days vs Prev 30 Days",
             shortsVsLongs,
             averages: {
-                dailyViews: averages?.daily?.viewsAverage?.toLocaleString() || "—",
-                weeklyViews: averages?.weekly?.viewsAverage?.toLocaleString() || "—"
+                dailyViews: fmt(averages?.daily?.viewsAverage),
+                weeklyViews: fmt(averages?.weekly?.viewsAverage)
             },
-            subscribersLast30Days: channel.subs30 ? channel.subs30.toLocaleString() : (averages?.monthly?.subsAverage?.toLocaleString() || "—"),
+            subscribersLast30Days: channel.subs30 ? fmt(channel.subs30) : fmt(averages?.monthly?.subsAverage),
             source: last30Views === channel.vpv30 ? 'ViewStats API (Projected)' : 'ViewStats API (Direct)'
         };
 
@@ -1023,6 +1043,91 @@ app.post('/api/payments/callback', async (req, res) => {
                 }
             }
         }
+        res.sendStatus(200);
+    } catch (error) {
+        console.error('❌ Webhook Error:', error.message);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// --- VIEWSTATS CHANNEL ENDPOINT (with smart handle resolution) ---
+app.get('/api/viewstats/channel', async (req, res) => {
+    let { handle } = req.query;
+    if (!handle) return res.status(400).json({ error: 'Missing handle' });
+
+    handle = handle.trim();
+
+    // Step 1: If it's already a @handle, use it directly
+    const isHandle = handle.startsWith('@') || /^[a-zA-Z0-9_.-]+$/.test(handle.replace('@',''));
+    let resolvedHandle = handle.startsWith('@') ? handle : `@${handle}`;
+
+    // Step 2: If it's NOT a simple handle (has spaces or looks like a search query),
+    // OR if direct fetch fails, resolve via YouTube Data API
+    const hasSpaces = handle.includes(' ');
+    
+    console.log(`🕵️ [API] Fetching ViewStats for: ${handle} (resolved: ${resolvedHandle})`);
+
+    try {
+        // First, try direct ViewStats fetch with the handle
+        if (!hasSpaces) {
+            const data = await getViewStatsData(resolvedHandle);
+            if (data) return res.json(data);
+        }
+
+        // If direct fetch failed or input has spaces, try YouTube search -> resolve handle
+        const YT_KEY = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_API_KEY;
+        if (YT_KEY) {
+            try {
+                console.log(`  🔍 Resolving handle via YouTube search for: "${handle}"`);
+                const searchQuery = handle.replace(/^@/, '');
+                const ytRes = await fetch(
+                    `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(searchQuery)}&maxResults=1&key=${YT_KEY}`
+                );
+                const ytData = await ytRes.json();
+                const channelId = ytData?.items?.[0]?.snippet?.channelId;
+
+                if (channelId) {
+                    // Get the channel's custom @handle via channels endpoint
+                    const chanRes = await fetch(
+                        `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${YT_KEY}`
+                    );
+                    const chanData = await chanRes.json();
+                    const customUrl = chanData?.items?.[0]?.snippet?.customUrl; // e.g. "@pewdiepie"
+                    const title = chanData?.items?.[0]?.snippet?.title;
+
+                    console.log(`  ✅ YouTube resolved: "${handle}" -> customUrl: ${customUrl} (${title})`);
+
+                    if (customUrl) {
+                        // customUrl is already @handle format
+                        const ytHandle = customUrl.startsWith('@') ? customUrl : `@${customUrl}`;
+                        const data = await getViewStatsData(ytHandle);
+                        if (data) return res.json(data);
+                    }
+
+                    // Fallback: try title as handle
+                    if (title) {
+                        const titleHandle = `@${title.replace(/\s+/g, '').toLowerCase()}`;
+                        const data = await getViewStatsData(titleHandle);
+                        if (data) return res.json(data);
+                    }
+                }
+            } catch (ytErr) {
+                console.warn(`  ⚠️ YouTube resolve failed:`, ytErr.message);
+            }
+        }
+
+        // Final fallback: just try original handle as-is
+        const fallbackData = await getViewStatsData(resolvedHandle);
+        if (fallbackData) return res.json(fallbackData);
+
+        return res.status(404).json({ error: 'Could not find channel data. Try entering the @handle directly (e.g. @mrbeast).' });
+    } catch (error) {
+        console.error("ViewStats API Error:", error.message);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
 
 // --- VIEWSTATS PROXY (For Production CORS) ---
 app.get('/api/proxy/viewstats', async (req, res) => {
@@ -1055,13 +1160,6 @@ app.get('/api/proxy/viewstats', async (req, res) => {
     } catch (error) {
         console.error(`❌ Proxy Error [${path}]:`, error.response?.status || error.message);
         res.status(error.response?.status || 500).send(error.response?.data || 'Proxy Error');
-    }
-});
-
-        res.sendStatus(200);
-    } catch (error) {
-        console.error('❌ Webhook Error:', error.message);
-        res.status(500).send('Internal Server Error');
     }
 });
 

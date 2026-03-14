@@ -63,10 +63,21 @@ function apiReq(path) {
     });
 }
 
-async function test() {
-    const channel = await apiReq('/channels/@mrbeast');
-    console.log('KEYS:', Object.keys(channel || {}));
-    console.log('DATA:', JSON.stringify(channel, null, 2).substring(0, 500));
+async function test(searchHandle) {
+    const handle = searchHandle || process.argv[2] || '@mrbeast';
+    const channel = await apiReq(`/channels/${handle}`);
+    const data = channel?.data || channel;
+    console.log(`--- RESULTS FOR ${handle} ---`);
+    console.log('CH KEYS:', Object.keys(data || {}));
+    if (data) {
+        console.log('Name:', data.displayName);
+        console.log('Subs:', data.subscriberCount);
+        console.log('Subs30:', data.subs30);
+        console.log('Views30:', data.vpv30);
+        console.log('Grade:', data.grade);
+    } else {
+        console.log('NO DATA FOUND');
+    }
 }
 
 test();
