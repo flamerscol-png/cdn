@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Logs
 logs
 *.log
@@ -25,3 +26,10 @@ dist-ssr
 
 # Server secrets
 server/.env
+=======
+node_modules
+.env
+serviceAccountKey.json
+*.html
+*.log
+>>>>>>> 3c54b56eca7d351689150346d1e14e6bcb36f6c6
