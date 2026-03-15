@@ -4,6 +4,7 @@ const cors = require('cors');
 const axios = require('axios');
 const googleTrends = require('google-trends-api');
 const { connect } = require('puppeteer-real-browser');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -618,17 +619,11 @@ function decryptViewStats(data) {
 async function viewStatsRequest(path) {
     const targetUrl = `${VS_BASE_URL}${path}`;
     const scraperApiKey = process.env.SCRAPER_API_KEY || "da80d7bc017fb9b60b138dcae06f1571";
-    
-    // If we have a proxy key, route the request through ScraperAPI payload endpoint
-    let fetchUrl = targetUrl;
-    if (scraperApiKey) {
-        // We use the REST API integration of ScraperAPI
-        // render=false ensures we just get the raw JSON/byte response back without spinning a headless browser
-        fetchUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(targetUrl)}&render=false`;
-    }
+    const proxyUrl = `http://scraperapi:${scraperApiKey}@proxy.scraperapi.com:8001`;
+    const agent = new HttpsProxyAgent(proxyUrl);
 
     try {
-        const response = await fetch(fetchUrl, {
+        const response = await fetch(targetUrl, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${VS_API_TOKEN}`,
@@ -644,33 +639,31 @@ async function viewStatsRequest(path) {
                 'sec-fetch-dest': 'empty',
                 'sec-fetch-mode': 'cors',
                 'sec-fetch-site': 'same-site',
-                'Priority': 'u=1, i'
-            }
+            },
+            agent,
         });
 
-        if (response.ok) {
-            const contentType = response.headers.get('content-type') || '';
-            // ScraperAPI sometimes returns plain text for JSON or octet streams, so we rely on whether it decrypts out right
-            if (contentType.includes('application/json') || contentType.includes('text/plain')) {
-                try {
-                    const result = await response.json();
-                    return result && result.data ? result.data : result;
-                } catch(jErr) {
-                    // Fall back to decryption if json parse fails on plain text
-                }
-            } 
-            
-            // Binary fallback (ViewStats encrypted payload)
-            const buffer = Buffer.from(await response.arrayBuffer());
-            const result = decryptViewStats(buffer);
-            return result && result.data ? result.data : result;
-            
-        } else {
+        if (!response.ok) {
             console.error(`  ❌ ViewStats API Error (${path}): Status ${response.status} ${response.statusText}`);
             return null;
         }
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+            try {
+                const result = JSON.parse(buffer.toString('utf8'));
+                return result && result.data ? result.data : result;
+            } catch (e) { /* fall through to decrypt */ }
+        }
+
+        // Encrypted binary payload (default ViewStats response)
+        const result = decryptViewStats(buffer);
+        return result && result.data ? result.data : result;
+
     } catch (e) {
-        console.error(`  ❌ ViewStats Network Error (${path}):`, e.message);
+        console.error(`  ❌ ViewStats Request Error (${path}):`, e.message);
         return null;
     }
 }
