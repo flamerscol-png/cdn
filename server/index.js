@@ -616,9 +616,19 @@ function decryptViewStats(data) {
 }
 
 async function viewStatsRequest(path) {
-    const url = `${VS_BASE_URL}${path}`;
+    const targetUrl = `${VS_BASE_URL}${path}`;
+    const scraperApiKey = process.env.SCRAPER_API_KEY || "da80d7bc017fb9b60b138dcae06f1571";
+    
+    // If we have a proxy key, route the request through ScraperAPI payload endpoint
+    let fetchUrl = targetUrl;
+    if (scraperApiKey) {
+        // We use the REST API integration of ScraperAPI
+        // render=false ensures we just get the raw JSON/byte response back without spinning a headless browser
+        fetchUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(targetUrl)}&render=false`;
+    }
+
     try {
-        const response = await fetch(url, {
+        const response = await fetch(fetchUrl, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${VS_API_TOKEN}`,
@@ -640,14 +650,21 @@ async function viewStatsRequest(path) {
 
         if (response.ok) {
             const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                const result = await response.json();
-                return result && result.data ? result.data : result;
-            } else {
-                const buffer = Buffer.from(await response.arrayBuffer());
-                const result = decryptViewStats(buffer);
-                return result && result.data ? result.data : result;
-            }
+            // ScraperAPI sometimes returns plain text for JSON or octet streams, so we rely on whether it decrypts out right
+            if (contentType.includes('application/json') || contentType.includes('text/plain')) {
+                try {
+                    const result = await response.json();
+                    return result && result.data ? result.data : result;
+                } catch(jErr) {
+                    // Fall back to decryption if json parse fails on plain text
+                }
+            } 
+            
+            // Binary fallback (ViewStats encrypted payload)
+            const buffer = Buffer.from(await response.arrayBuffer());
+            const result = decryptViewStats(buffer);
+            return result && result.data ? result.data : result;
+            
         } else {
             console.error(`  ❌ ViewStats API Error (${path}): Status ${response.status} ${response.statusText}`);
             return null;
