@@ -2,7 +2,8 @@
 # exit on error
 set -o errexit
 
-# Install dependencies
+# Install server dependencies
+cd server
 npm install
 
-echo "...Build Complete (Using Direct API)..."
+echo "...Build Complete..."
