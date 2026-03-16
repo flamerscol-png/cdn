@@ -759,8 +759,12 @@ const SiteAuditor = () => {
                                         )}
                                     </SectionCard>
 
-                                    {/* Ad */}
-                                    <AdContainer slot="auditor_sidebar" className="h-[250px] bg-gray-900/50 rounded-xl" />
+                                    {/* Sidebar Ads: Triple 300x250 */}
+                                    <div className="flex flex-col gap-4">
+                                        <AdBanner size="rectangle" />
+                                        <AdBanner size="rectangle" />
+                                        <AdBanner size="rectangle" />
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>

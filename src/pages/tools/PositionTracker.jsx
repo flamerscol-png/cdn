@@ -338,6 +338,13 @@ const PositionTracker = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Sidebar Ads: Triple 300x250 */}
+                        <div className="mt-6 flex flex-col gap-4">
+                            <AdBanner size="rectangle" />
+                            <AdBanner size="rectangle" />
+                            <AdBanner size="rectangle" />
+                        </div>
                     </div>
                 </div>
             </main>

@@ -334,8 +334,12 @@ const KeywordResearch = () => {
                                     </p>
                                 </div>
 
-                                {/* Ad Space - Sidebar */}
-                                <AdContainer slot="keyword_sidebar" className="h-[250px] w-full bg-gray-900/30 rounded-xl" />
+                                {/* Ad Space - Sidebar: Triple 300x250 */}
+                                <div className="space-y-4">
+                                    <AdBanner size="rectangle" />
+                                    <AdBanner size="rectangle" />
+                                    <AdBanner size="rectangle" />
+                                </div>
                             </div>
                         </div>
                     </motion.div>

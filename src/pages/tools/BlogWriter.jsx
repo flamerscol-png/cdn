@@ -189,7 +189,13 @@ const BlogWriter = () => {
 
                     {/* Results Area */}
                     <div className="lg:col-span-7">
-                        <AdBanner size="leaderboard" className="mb-8" />
+                        <AdBanner size="leaderboard" className="mb-4" />
+                        {/* Sidebar/Results Ads: Triple 300x250 */}
+                        <div className="flex flex-wrap justify-center gap-4 mb-8">
+                            <AdBanner size="rectangle" />
+                            <AdBanner size="rectangle" />
+                            <AdBanner size="rectangle" />
+                        </div>
                         {loading ? (
                             <div className="modrinth-card p-12 h-full flex flex-col items-center justify-center min-h-[400px]">
                                 <div className="w-16 h-16 border-4 border-white/5 border-t-[#ff4d00] rounded-full animate-spin mb-8"></div>

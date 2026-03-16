@@ -536,6 +536,13 @@ Output ONLY this JSON structure (don't miss performanceVerdict or velocityPoints
                             {isGenerating && (<div className="flex flex-col gap-3"><div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden"><motion.div className="h-full bg-[#ff0000]" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 15, ease: "linear" }} /></div><p className="text-[10px] font-black text-[#ff0000] uppercase tracking-widest text-center animate-pulse">{loadingStep}</p></div>)}
                         </div>
 
+                        {/* Sidebar Ads: Triple 300x250 */}
+                        <div className="space-y-4">
+                            <AdBanner size="rectangle" />
+                            <AdBanner size="rectangle" />
+                            <AdBanner size="rectangle" />
+                        </div>
+
                         {/* --- PAST STRATEGIES ---*/}
                         {savedStrategies.length > 0 && (
                             <div className="modrinth-card p-4 border border-white/5 bg-[#0a0a0a]/80">
