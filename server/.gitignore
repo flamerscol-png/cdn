@@ -3,3 +3,4 @@ node_modules
 serviceAccountKey.json
 *.html
 *.log
+server_logs.txt

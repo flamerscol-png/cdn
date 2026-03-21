@@ -618,13 +618,19 @@ function decryptViewStats(data) {
 
 async function viewStatsRequest(path) {
     const targetUrl = `${VS_BASE_URL}${path}`;
-    const scraperApiKey = process.env.SCRAPER_API_KEY || "da80d7bc017fb9b60b138dcae06f1571";
-    const proxyUrl = `http://scraperapi:${scraperApiKey}@proxy.scraperapi.com:8001`;
-    const agent = new HttpsProxyAgent(proxyUrl);
+    const scraperApiKey = process.env.SCRAPER_API_KEY; // Only use if present
+    
+    let agent = null;
+    if (scraperApiKey) {
+        const proxyUrl = `http://scraperapi:${scraperApiKey}@proxy.scraperapi.com:8001`;
+        agent = new HttpsProxyAgent(proxyUrl);
+        console.log(`  🌐 Using ScraperAPI Proxy for ${path}`);
+    } else {
+        console.log(`  🔌 Using Direct Request for ${path}`);
+    }
 
     try {
-        const response = await fetch(targetUrl, {
-            method: 'GET',
+        const response = await axios.get(targetUrl, {
             headers: {
                 'Authorization': `Bearer ${VS_API_TOKEN}`,
                 'Accept': 'application/json, text/plain, */*',
@@ -640,16 +646,14 @@ async function viewStatsRequest(path) {
                 'sec-fetch-mode': 'cors',
                 'sec-fetch-site': 'same-site',
             },
-            agent,
+            httpsAgent: agent,
+            proxy: false, 
+            responseType: 'arraybuffer',
+            timeout: 15000
         });
 
-        if (!response.ok) {
-            console.error(`  ❌ ViewStats API Error (${path}): Status ${response.status} ${response.statusText}`);
-            return null;
-        }
-
-        const buffer = Buffer.from(await response.arrayBuffer());
-        const contentType = response.headers.get('content-type') || '';
+        const buffer = Buffer.from(response.data);
+        const contentType = response.headers['content-type'] || '';
 
         if (contentType.includes('application/json')) {
             try {
@@ -663,7 +667,35 @@ async function viewStatsRequest(path) {
         return result && result.data ? result.data : result;
 
     } catch (e) {
-        console.error(`  ❌ ViewStats Request Error (${path}):`, e.message);
+        // If it failed with proxy, try one last time direct
+        if (agent) {
+            console.warn(`  ⚠️ Proxy failed (${e.message}), attempting direct fallback...`);
+            return viewStatsRequestDirect(path); 
+        }
+        console.error(`  ❌ ViewStats Request Error (${path}):`, e.response?.status ? `${e.response.status} ${e.response.statusText}` : e.message);
+        return null;
+    }
+}
+
+// Direct fallback to avoid recursion loops
+async function viewStatsRequestDirect(path) {
+    const targetUrl = `${VS_BASE_URL}${path}`;
+    try {
+        const response = await axios.get(targetUrl, {
+            headers: {
+                'Authorization': `Bearer ${VS_API_TOKEN}`,
+                'Accept': 'application/json, text/plain, */*',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+                'Referer': 'https://www.viewstats.com/',
+            },
+            responseType: 'arraybuffer',
+            timeout: 10000
+        });
+        const buffer = Buffer.from(response.data);
+        const result = decryptViewStats(buffer);
+        return result && result.data ? result.data : result;
+    } catch (e) {
+        console.error(`  ❌ Direct Fallback Error (${path}):`, e.message);
         return null;
     }
 }
@@ -1182,6 +1214,39 @@ console.error = (...args) => { serverLogs.push(`[ERR] ${args.join(' ')}`); if (s
 
 app.get('/_debug/logs', (req, res) => {
     res.type('text/plain').send(serverLogs.join('\n'));
+});
+
+// --- HUGGING FACE IMAGE PROXY ---
+app.post('/api/generate-image', async (req, res) => {
+    const { inputs } = req.body;
+    if (!inputs) return res.status(400).json({ error: 'Missing inputs' });
+
+    const HF_TOKEN = process.env.HUGGING_FACE_TOKEN || process.env.VITE_HUGGING_FACE_TOKEN;
+    if (!HF_TOKEN) return res.status(500).json({ error: 'Hugging Face token not configured on server' });
+
+    try {
+        console.log(`🎨 Generating Image Proxy: ${inputs.substring(0, 50)}...`);
+        const response = await axios({
+            method: 'post',
+            url: "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+            headers: { 
+                Authorization: `Bearer ${HF_TOKEN}`,
+                "Content-Type": "application/json",
+                "Accept": "image/png"
+            },
+            data: { inputs },
+            responseType: 'arraybuffer'
+        });
+
+        res.set('Content-Type', 'image/png');
+        res.send(response.data);
+    } catch (error) {
+        console.error('❌ Image Generation Proxy Error:', error.response?.data?.toString() || error.message);
+        res.status(error.response?.status || 500).json({ 
+            error: 'Image generation failed', 
+            details: error.response?.data?.toString() || error.message 
+        });
+    }
 });
 
 app.listen(PORT, () => {
