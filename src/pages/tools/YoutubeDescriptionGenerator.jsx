@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, database } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { deductPowers } from '../../utils/db';
 import { motion } from 'framer-motion';
 import Footer from '../../components/Footer';
 import SEOHead from '../../components/SEOHead';
 import { FaYoutube, FaFileAlt, FaCopy, FaCheck, FaLink, FaAlignLeft } from 'react-icons/fa';
 import AdBanner from '../../components/AdBanner';
+import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
 
 const YoutubeDescriptionGenerator = () => {
     const [title, setTitle] = useState('');
@@ -13,15 +18,44 @@ const YoutubeDescriptionGenerator = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState(null);
+    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const TOOL_COST = 10;
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    setUserData(snapshot.val());
+                });
+            } else {
+                setUserData(null);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     const generateDescription = async (e) => {
         e.preventDefault();
         if (!title.trim() || !about.trim()) return;
 
+        if (!auth.currentUser) {
+            navigate('/login');
+            return;
+        }
+
+        if (!userData || (userData.powers || 0) < TOOL_COST) {
+            setError(`Insufficient Coal! You need ${TOOL_COST} 🔥 but have ${userData?.powers || 0} 🔥.`);
+            return;
+        }
+
         setIsGenerating(true);
         setError(null);
 
         try {
+            await deductPowers(auth.currentUser.uid, TOOL_COST);
+
             const apiKey = import.meta.env.VITE_GROQ_API_KEY;
             if (!apiKey || apiKey.includes("_YOUR_API_KEY_HERE")) {
                 throw new Error("Groq API Key is missing. Please check your .env file.");
@@ -97,7 +131,7 @@ const YoutubeDescriptionGenerator = () => {
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-6xl mx-auto w-full">
-            <AdBanner size="leaderboard" />
+                <AdBanner size="leaderboard" />
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -166,7 +200,9 @@ const YoutubeDescriptionGenerator = () => {
                                         AI is Writing...
                                     </>
                                 ) : (
-                                    'Generate AI Description'
+                                    <>
+                                        <FaMagic /> Craft Description (10 🔥)
+                                    </>
                                 )}
                             </button>
                         </form>
@@ -206,6 +242,7 @@ const YoutubeDescriptionGenerator = () => {
                     )}
                 </div>
             </main>
+            <RelatedYoutubeTools currentToolPath="/tools/youtube-description-generator" />
             <Footer />
         </div>
     );

@@ -186,3 +186,71 @@ export const deductPowers = async (userId, amount) => {
         throw error;
     }
 };
+// ============================================
+// SUBMIT SUPPORT REQUEST
+// ============================================
+export const submitSupportRequest = async (userId, requestData) => {
+    try {
+        console.log(`[DB] Submitting support request for ${userId}`);
+        const supportRef = ref(database, `support_requests/${userId}/${Date.now()}`);
+        await withTimeout(set(supportRef, {
+            ...requestData,
+            status: 'open',
+            submittedAt: Date.now()
+        }));
+        console.log(`[DB] ✅ Support request submitted successfully`);
+        return true;
+    } catch (error) {
+        console.error(`[DB] ❌ Error submitting support request:`, error.message);
+        throw error;
+    }
+};
+// ============================================
+// ADMIN: GET ALL SUPPORT REQUESTS
+// ============================================
+export const getAllSupportRequests = async () => {
+    try {
+        console.log("[DB] Fetching all support requests...");
+        const dbRef = ref(database);
+        const snapshot = await withTimeout(get(child(dbRef, 'support_requests')));
+        
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // Flatten the data: { userId: { timestamp: { ...data } } } -> [ { userId, ticketId, ...data } ]
+            const flattened = [];
+            Object.entries(data).forEach(([userId, userTickets]) => {
+                Object.entries(userTickets).forEach(([ticketId, ticketData]) => {
+                    flattened.push({
+                        userId,
+                        ticketId,
+                        ...ticketData
+                    });
+                });
+            });
+            // Sort by submission time (descending)
+            return flattened.sort((a, b) => b.submittedAt - a.submittedAt);
+        }
+        return [];
+    } catch (error) {
+        console.error("[DB] ❌ Error fetching tickets:", error.message);
+        throw error;
+    }
+};
+
+// ============================================
+// ADMIN: UPDATE TICKET STATUS
+// ============================================
+export const updateSupportStatus = async (userId, ticketId, newStatus) => {
+    try {
+        console.log(`[DB] Updating status for ticket ${ticketId} to ${newStatus}`);
+        const ticketRef = ref(database, `support_requests/${userId}/${ticketId}`);
+        await withTimeout(update(ticketRef, { 
+            status: newStatus,
+            updatedAt: Date.now()
+        }));
+        return true;
+    } catch (error) {
+        console.error("[DB] ❌ Error updating ticket:", error.message);
+        throw error;
+    }
+};

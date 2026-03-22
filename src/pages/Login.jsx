@@ -4,6 +4,8 @@ import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import { createUserProfile } from '../utils/db';
 import { motion } from 'framer-motion';
+import SEOHead from '../components/SEOHead';
+import AdBanner from '../components/AdBanner';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -39,6 +41,10 @@ const Login = () => {
 
     return (
         <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-4 relative overflow-hidden">
+            <SEOHead 
+                title="Log In" 
+                description="Securely log in to your FlameCoal account to access premium SEO and YouTube growth tools." 
+            />
             {/* Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-[#ff4d00]/5 rounded-full blur-[120px]" />
@@ -51,14 +57,14 @@ const Login = () => {
                 className="w-full max-w-md bg-[#121212]/50 p-10 rounded-3xl border border-white/5 shadow-2xl backdrop-blur-xl relative z-10"
             >
                 <div className="text-center mb-8">
-                    <motion.h2
+                    <motion.h1
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
                         className="text-4xl font-black mb-2 tracking-tight"
                     >
                         Welcome <span className="text-[#ff4d00]">Back</span>
-                    </motion.h2>
+                    </motion.h1>
                     <motion.p
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -140,6 +146,11 @@ const Login = () => {
                     </Link>
                 </p>
             </motion.div>
+            
+            {/* Ad Placeholder at bottom of screen */}
+            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 hidden md:block">
+                <AdBanner size="leaderboard" />
+            </div>
         </div>
     );
 };

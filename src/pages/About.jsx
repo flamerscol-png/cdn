@@ -3,10 +3,15 @@ import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import AdBanner from '../components/AdBanner';
+import SEOHead from '../components/SEOHead';
 
 const About = () => {
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
+            <SEOHead 
+                title="About Us" 
+                description="Learn about FlameCoal, our mission, and the team building a precision-engineered platform for SEO experts." 
+            />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-5xl mx-auto">
                 <motion.div

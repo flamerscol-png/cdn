@@ -1,14 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, database } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { deductPowers } from '../../utils/db';
 import { motion } from 'framer-motion';
 import Footer from '../../components/Footer';
 import SEOHead from '../../components/SEOHead';
 import { FaYoutube, FaDownload, FaLink } from 'react-icons/fa';
 import AdBanner from '../../components/AdBanner';
+import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
 
 const YoutubeThumbnailDownloader = () => {
     const [url, setUrl] = useState('');
     const [thumbnails, setThumbnails] = useState(null);
     const [error, setError] = useState('');
+    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const TOOL_COST = 5;
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    setUserData(snapshot.val());
+                });
+            } else {
+                setUserData(null);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     const extractVideoId = (url) => {
         const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
@@ -16,7 +38,7 @@ const YoutubeThumbnailDownloader = () => {
         return (match && match[7].length === 11) ? match[7] : false;
     };
 
-    const handleFetch = (e) => {
+    const handleFetch = async (e) => {
         e.preventDefault();
         setError('');
         const videoId = extractVideoId(url);
@@ -27,12 +49,30 @@ const YoutubeThumbnailDownloader = () => {
             return;
         }
 
-        setThumbnails({
+        if (!auth.currentUser) {
+            navigate('/login');
+            return;
+        }
+
+        if (!userData || (userData.powers || 0) < TOOL_COST) {
+            setError(`Insufficient Coal! You need ${TOOL_COST} 🔥 but have ${userData?.powers || 0} 🔥.`);
+            setThumbnails(null);
+            return;
+        }
+
+        try {
+            await deductPowers(auth.currentUser.uid, TOOL_COST);
+            
+            setThumbnails({
             maxres: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
             hq: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
             mq: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
             sd: `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
-        });
+            });
+        } catch (err) {
+            console.error("Deduction error:", err);
+            setError(err.message || "Failed to process request.");
+        }
     };
 
     const downloadImage = async (imgUrl, quality) => {
@@ -95,7 +135,7 @@ const YoutubeThumbnailDownloader = () => {
                             type="submit"
                             className="bg-[#ff0000] hover:bg-[#ff1a1a] text-white font-black px-8 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,0,0.3)] hover:shadow-[0_0_30px_rgba(255,0,0,0.5)] flex items-center justify-center gap-2 whitespace-nowrap"
                         >
-                            <FaDownload /> Extract Thumbnail
+                            <FaDownload /> Extract Thumbnail (5 🔥)
                         </button>
                     </form>
                     {error && <div className="mt-4 text-[#ff0000] text-sm font-bold bg-[#ff0000]/10 p-3 rounded-lg">{error}</div>}
@@ -141,6 +181,7 @@ const YoutubeThumbnailDownloader = () => {
                     </motion.div>
                 )}
             </main>
+            <RelatedYoutubeTools currentToolPath="/tools/youtube-thumbnail-downloader" />
             <Footer />
         </div>
     );

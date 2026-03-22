@@ -4,24 +4,20 @@ import { motion } from 'framer-motion';
 import Footer from '../components/Footer';
 import SEOHead from '../components/SEOHead';
 import AdBanner from '../components/AdBanner';
+import PromoAd from '../components/PromoAd';
+import SlideAd from '../components/SlideAd';
 
 const SeoTools = () => {
     const tools = [
-        {
-            icon: "🎯",
-            title: "Position Tracker",
-            desc: "Native localized scraping with GL/HL support. Track your exact organic rankings by country.",
-            link: "/tools/position-tracker",
-            active: true,
-            tag: "ACCURATE"
-        },
+
         {
             icon: "✍️",
             title: "AI Blog Writer",
             desc: "Generate professional-grade SEO content instantly. Structured, semantic, and human-ready.",
             link: "/tools/blog-writer",
             active: true,
-            tag: "AI POWERED"
+            tag: "AI POWERED",
+            price: 40
         },
         {
             icon: "🛡️",
@@ -29,23 +25,8 @@ const SeoTools = () => {
             desc: "16-point technical SEO audit. Deep crawl analysis with zero bloat and clear health scores.",
             link: "/tools/site-auditor",
             active: true,
-            tag: "TECHNICAL"
-        },
-        {
-            icon: "🔗",
-            title: "Backlink Monitor",
-            desc: "Track referring domains and monitor new/lost links to your domains using SERP signals.",
-            link: "/tools/backlink-monitor",
-            active: true,
-            tag: "MONITORING"
-        },
-        {
-            icon: "🏆",
-            title: "Authority Checker",
-            desc: "Instant DR, Page Authority, and Spam Score analysis for any domain using our signals model.",
-            link: "/tools/authority-checker",
-            active: true,
-            tag: "AUTHORITY"
+            tag: "TECHNICAL",
+            price: 30
         },
         {
             icon: "🔍",
@@ -53,7 +34,8 @@ const SeoTools = () => {
             desc: "Data-driven keyword discovery using live Google Trends and SERP completions.",
             link: "/tools/keyword-research",
             active: true,
-            tag: "INSIGHTS"
+            tag: "INSIGHTS",
+            price: 15
         }
     ];
 
@@ -84,12 +66,15 @@ const SeoTools = () => {
                         Professional Toolkit
                     </div>
                     <h1 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">SEO <span className="text-[#ff4d00]">Intelligence</span></h1>
-                    <p className="text-xl text-gray-400 max-w-2xl font-medium leading-relaxed">
+                    <p className="text-xl text-gray-400 max-w-2xl font-medium leading-relaxed mb-6">
                         Precision-engineered tools to track rankings, generate content, and audit technical performance. Built for speed.
                     </p>
+                    <Link to="/youtube-tools" className="inline-flex items-center gap-2 text-[#ff4d00] hover:text-[#ff4d00]/80 transition-all font-bold text-sm bg-[#ff4d00]/10 px-4 py-2 rounded-lg border border-[#ff4d00]/20 hover:scale-[1.02] active:scale-95">
+                        <span className="text-base">📹</span> Switch to YouTube Suite
+                    </Link>
                 </motion.div>
 
-                <AdBanner size="leaderboard" />
+                <SlideAd />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {tools.map((tool, index) => (
@@ -111,6 +96,8 @@ const SeoTools = () => {
                         </motion.div>
                     ))}
                 </div>
+
+                <PromoAd variant="strip" className="mt-8" />
             </main>
 
             <Footer />
@@ -130,8 +117,16 @@ const ToolCard = ({ tool, badge }) => (
             {tool.tag || "UTILITY"}
         </span>
 
-        <div className="text-4xl mb-6 bg-[#050505] p-4 rounded-2xl border border-white/5 shadow-inner transition-transform group-hover:scale-110">
-            {tool.icon}
+        <div className="flex w-full items-start justify-between mb-6">
+            <div className="text-4xl bg-[#050505] p-4 rounded-2xl border border-white/5 shadow-inner transition-transform group-hover:scale-110">
+                {tool.icon}
+            </div>
+            {tool.price && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#ff4d00]/10 border border-[#ff4d00]/20 text-[#ff4d00] text-[10px] font-black uppercase tracking-widest">
+                    <span>{tool.price}</span>
+                    <span className="text-xs">🔥</span>
+                </div>
+            )}
         </div>
         <h3 className="text-2xl font-black mb-4 group-hover:text-[#ff4d00] transition-colors leading-tight">
             {tool.title}

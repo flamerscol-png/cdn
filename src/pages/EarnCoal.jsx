@@ -4,20 +4,23 @@ import { useNavigate } from 'react-router-dom';
 import { auth, database } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 import { addPowers } from '../utils/db';
-import { FaFire, FaAd, FaHammer, FaGem, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { FaFire, FaAd, FaHammer, FaGem, FaCheckCircle, FaExclamationTriangle, FaMousePointer } from 'react-icons/fa';
 import AdBanner from '../components/AdBanner';
+import PromoAd from '../components/PromoAd';
+import SEOHead from '../components/SEOHead';
 
 const EarnCoal = () => {
     const [user, setUser] = useState(null);
     const [userCoal, setUserCoal] = useState(0);
     const [isMining, setIsMining] = useState(false);
     const [isClaiming, setIsClaiming] = useState(false);
+    const [bannerClicked, setBannerClicked] = useState(false);
+    const [timerDone, setTimerDone] = useState(false);
     const [timer, setTimer] = useState(0);
-    const [status, setStatus] = useState(null); // { type: 'success'|'error'|'info', message: string }
+    const [status, setStatus] = useState(null);
     const [totalMined, setTotalMined] = useState(0);
     const navigate = useNavigate();
 
-    // Auth + Real-time Coal balance listener
     useEffect(() => {
         let unsubscribeData;
         const unsubscribeAuth = auth.onAuthStateChanged((u) => {
@@ -27,13 +30,11 @@ const EarnCoal = () => {
             }
             setUser(u);
 
-            // Listen to user's coal balance in real-time
             const userRef = ref(database, `users/${u.uid}`);
             unsubscribeData = onValue(userRef, (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.val();
                     setUserCoal(data.powers || 0);
-                    console.log("[EarnCoal] Real-time balance update:", data.powers);
                 }
             }, (error) => {
                 console.error("[EarnCoal] Real-time listener error:", error.message);
@@ -47,25 +48,45 @@ const EarnCoal = () => {
         };
     }, [navigate]);
 
-    // Mining countdown timer
+    // When both conditions met, auto-claim
+    useEffect(() => {
+        if (timerDone && bannerClicked && !isClaiming) {
+            claimReward();
+        }
+    }, [timerDone, bannerClicked, isClaiming]);
+
     useEffect(() => {
         let interval;
         if (isMining && timer > 0) {
             interval = setInterval(() => {
                 setTimer((prev) => prev - 1);
             }, 1000);
-        } else if (isMining && timer === 0 && !isClaiming) {
-            // Timer finished, claim the reward
-            claimReward();
+        } else if (isMining && timer === 0 && !timerDone) {
+            setTimerDone(true);
+            if (!bannerClicked) {
+                setStatus({ type: 'info', message: 'Almost there! Click the sponsored banner below to claim your 20 🔥 Coal.' });
+            }
         }
         return () => clearInterval(interval);
-    }, [isMining, timer, isClaiming]);
+    }, [isMining, timer, timerDone, bannerClicked]);
 
     const startMining = () => {
         if (isMining || isClaiming) return;
         setIsMining(true);
+        setBannerClicked(false);
+        setTimerDone(false);
         setTimer(15);
-        setStatus({ type: 'info', message: 'Analyzing Ad Energy... Please wait.' });
+        setStatus({ type: 'info', message: 'Mining started! Click the sponsored banner and wait for the timer.' });
+    };
+
+    const handleBannerClick = () => {
+        if (!isMining || bannerClicked) return;
+        setBannerClicked(true);
+        if (timerDone) {
+            // Timer already done, claim will be triggered by useEffect
+        } else {
+            setStatus({ type: 'info', message: '✅ Banner clicked! Wait for the timer to finish...' });
+        }
     };
 
     const claimReward = async () => {
@@ -76,17 +97,16 @@ const EarnCoal = () => {
         }
 
         setIsClaiming(true);
-        setStatus({ type: 'info', message: 'Claiming your 10 🔥 Coal...' });
+        setStatus({ type: 'info', message: 'Claiming your 20 🔥 Coal...' });
 
         try {
             console.log("[Mining] Claiming reward for:", user.uid);
-            const newTotal = await addPowers(user.uid, 10);
+            const newTotal = await addPowers(user.uid, 20);
 
             console.log("[Mining] ✅ Claim success! New total:", newTotal);
-            setStatus({ type: 'success', message: `Successfully mined 10 🔥 Coal! Balance: ${newTotal} 🔥` });
-            setTotalMined(prev => prev + 10);
+            setStatus({ type: 'success', message: `Successfully mined 20 🔥 Coal! Balance: ${newTotal} 🔥` });
+            setTotalMined(prev => prev + 20);
 
-            // Keep success message visible for 4 seconds, then reset
             setTimeout(() => {
                 setIsMining(false);
                 setIsClaiming(false);
@@ -123,6 +143,10 @@ const EarnCoal = () => {
 
     return (
         <div className="min-h-screen bg-[#050505] text-white pt-32 pb-20 px-4 md:px-8">
+            <SEOHead 
+                title="Earn Coal" 
+                description="Refuel your coal reserve by watching sponsored content. Power up your SEO tools on FlameCoal." 
+            />
             <div className="max-w-6xl mx-auto">
                 {/* Header Section */}
                 <div className="text-center mb-16">
@@ -138,7 +162,7 @@ const EarnCoal = () => {
                         <span className="text-[#ff4d00]">Reserve.</span>
                     </h1>
                     <p className="text-gray-400 font-medium max-w-2xl mx-auto text-lg leading-relaxed">
-                        Support the combustion engine by watching short sponsored content. Every claim adds <span className="text-white font-bold">10 🔥 Coal</span> to your reserve.
+                        Support the combustion engine by watching short sponsored content. Every claim adds <span className="text-white font-bold">20 🔥 Coal</span> to your reserve.
                     </p>
 
                     {/* Live Coal Balance Display */}
@@ -195,10 +219,10 @@ const EarnCoal = () => {
                                 </div>
 
                                 <h2 className="text-2xl font-black mb-2 uppercase tracking-tight">
-                                    {isClaiming ? "Claiming..." : isMining ? "Excavating..." : "Ready to Mine"}
+                                    {isClaiming ? "Claiming..." : (timerDone && !bannerClicked) ? "Click the Banner!" : isMining ? "Excavating..." : "Ready to Mine"}
                                 </h2>
                                 <p className="text-gray-500 text-sm font-medium mb-4">
-                                    {isClaiming ? "Saving reward to your account..." : isMining ? `Verification in ${timer}s...` : "Click below to begin the extraction process."}
+                                    {isClaiming ? "Saving reward to your account..." : (timerDone && !bannerClicked) ? "Click the sponsored banner below to get your Coal" : isMining ? `Verification in ${timer}s... ${bannerClicked ? '✅ Banner clicked!' : '👆 Click the banner!'}` : "Click below to begin the extraction process."}
                                 </p>
 
                                 {/* Progress Bar */}
@@ -240,11 +264,34 @@ const EarnCoal = () => {
                             <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#ff4d00]/5 blur-3xl rounded-full translate-y-1/2 -translate-x-1/2" />
                         </motion.div>
 
-                        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 flex flex-col items-center justify-center text-center group">
-                            <FaAd className="text-2xl text-gray-700 mb-2" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">Sponsored Module</span>
-                            <div className="mt-4 w-full h-[250px] border border-dashed border-white/10 rounded-xl flex items-center justify-center text-gray-800 font-black">
-                                300 x 250
+                        <div
+                            onClick={handleBannerClick}
+                            className={`rounded-3xl p-6 flex flex-col items-center justify-center text-center transition-all duration-300 ${isMining && !bannerClicked
+                                ? 'bg-[#ff4d00]/5 border-2 border-[#ff4d00]/40 cursor-pointer hover:bg-[#ff4d00]/10 animate-pulse shadow-lg shadow-[#ff4d00]/10'
+                                : bannerClicked
+                                    ? 'bg-green-500/5 border-2 border-green-500/30'
+                                    : 'bg-[#0a0a0a] border border-white/5'
+                            }`}
+                        >
+                            {bannerClicked ? (
+                                <>
+                                    <FaCheckCircle className="text-2xl text-green-400 mb-2" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-green-400">Banner Clicked ✅</span>
+                                </>
+                            ) : (
+                                <>
+                                    {isMining ? (
+                                        <FaMousePointer className="text-2xl text-[#ff4d00] mb-2 animate-bounce" />
+                                    ) : (
+                                        <FaAd className="text-2xl text-gray-700 mb-2" />
+                                    )}
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isMining ? 'text-[#ff4d00]' : 'text-gray-600'}`}>
+                                        {isMining ? '👆 Click Here to Continue' : 'Sponsored Module'}
+                                    </span>
+                                </>
+                            )}
+                            <div className={`mt-4 w-full h-[250px] border rounded-xl flex items-center justify-center font-black ${isMining && !bannerClicked ? 'border-[#ff4d00]/30 text-[#ff4d00]/30' : 'border-dashed border-white/10 text-gray-800'}`}>
+                                {isMining && !bannerClicked ? 'TAP HERE' : '300 x 250'}
                             </div>
                         </div>
                     </div>
@@ -273,6 +320,8 @@ const EarnCoal = () => {
                         728 x 90
                     </div>
                 </motion.div>
+
+                <PromoAd variant="leaderboard" className="mt-4" />
 
             </div>
         </div>

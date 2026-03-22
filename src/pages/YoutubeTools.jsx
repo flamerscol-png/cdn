@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import Footer from '../components/Footer';
 import SEOHead from '../components/SEOHead';
 import AdBanner from '../components/AdBanner';
+import PromoAd from '../components/PromoAd';
+import SlideAd from '../components/SlideAd';
 
 const YoutubeTools = () => {
     const tools = [
@@ -13,7 +15,8 @@ const YoutubeTools = () => {
             desc: "Extract and download any YouTube thumbnail in 4K MaxRes instantly.",
             link: "/tools/youtube-thumbnail-downloader",
             active: true,
-            tag: "YOUTUBE"
+            tag: "YOUTUBE",
+            price: 5
         },
         {
             icon: "🏷️",
@@ -21,7 +24,8 @@ const YoutubeTools = () => {
             desc: "Algorithmically generate high-traffic SEO tags for video discoverability.",
             link: "/tools/youtube-tag-generator",
             active: true,
-            tag: "YOUTUBE"
+            tag: "YOUTUBE",
+            price: 10
         },
         {
             icon: "📝",
@@ -29,7 +33,8 @@ const YoutubeTools = () => {
             desc: "Synthesize high CTR clickbait titles proven to maximize views.",
             link: "/tools/youtube-title-generator",
             active: true,
-            tag: "YOUTUBE"
+            tag: "YOUTUBE",
+            price: 10
         },
         {
             icon: "📜",
@@ -37,7 +42,8 @@ const YoutubeTools = () => {
             desc: "Format perfectly optimized video descriptions with timestamps and links.",
             link: "/tools/youtube-description-generator",
             active: true,
-            tag: "YOUTUBE"
+            tag: "YOUTUBE",
+            price: 10
         },
         {
             icon: "🎨",
@@ -45,15 +51,17 @@ const YoutubeTools = () => {
             desc: "AI-generated visual concepts, high-impact text, and color palettes for viral thumbnails.",
             link: "/tools/youtube-thumbnail-suggester",
             active: true,
-            tag: "AI POWERED"
+            tag: "AI POWERED",
+            price: 35
         },
         {
             icon: "🗺️",
             title: "Strategy Builder",
-            desc: "Generate a actionable YouTube growth plan with psychology logic. (Cost: 100 🔥)",
+            desc: "Generate a actionable YouTube growth plan with psychology logic.",
             link: "/tools/youtube-strategy-builder",
             active: true,
-            tag: "YOUTUBE"
+            tag: "YOUTUBE",
+            price: 25
         }
     ];
 
@@ -74,7 +82,7 @@ const YoutubeTools = () => {
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-7xl mx-auto w-full">
-                <AdBanner size="leaderboard" />
+                <SlideAd />
                 <motion.div
                     initial="hidden"
                     animate="visible"
@@ -85,9 +93,12 @@ const YoutubeTools = () => {
                         Creator Toolkit
                     </div>
                     <h1 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">YouTube <span className="text-[#ff0000]">SEO Tools</span></h1>
-                    <p className="text-xl text-gray-400 max-w-2xl font-medium leading-relaxed">
+                    <p className="text-xl text-gray-400 max-w-2xl font-medium leading-relaxed mb-6">
                         Algorithmically optimize your YouTube videos with our specialized tools. Generate high-CTR titles, semantic descriptions, and discoverability tags.
                     </p>
+                    <Link to="/seo-tools" className="inline-flex items-center gap-2 text-[#ff0000] hover:text-[#ff0000]/80 transition-all font-bold text-sm bg-[#ff0000]/10 px-4 py-2 rounded-lg border border-[#ff0000]/20 hover:scale-[1.02] active:scale-95">
+                        <span className="text-base">🔍</span> Switch to SEO Suite
+                    </Link>
                 </motion.div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -110,6 +121,8 @@ const YoutubeTools = () => {
                         </motion.div>
                     ))}
                 </div>
+
+                <PromoAd variant="strip" className="mt-8" />
             </main>
 
             <Footer />
@@ -129,8 +142,16 @@ const ToolCard = ({ tool, badge }) => (
             {tool.tag || "UTILITY"}
         </span>
 
-        <div className="text-4xl mb-6 bg-[#050505] p-4 rounded-2xl border border-white/5 shadow-inner transition-transform group-hover:scale-110">
-            {tool.icon}
+        <div className="flex w-full items-start justify-between mb-6">
+            <div className="text-4xl bg-[#050505] p-4 rounded-2xl border border-white/5 shadow-inner transition-transform group-hover:scale-110">
+                {tool.icon}
+            </div>
+            {tool.price && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#ff0000]/10 border border-[#ff0000]/20 text-[#ff0000] text-[10px] font-black uppercase tracking-widest">
+                    <span>{tool.price}</span>
+                    <span className="text-xs">🔥</span>
+                </div>
+            )}
         </div>
         <h3 className="text-2xl font-black mb-4 group-hover:text-[#ff0000] transition-colors leading-tight">
             {tool.title}

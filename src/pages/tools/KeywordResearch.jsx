@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, database } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { deductPowers } from '../../utils/db';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Footer from '../../components/Footer';
 import AdBanner from '../../components/AdBanner';
+import AdContainer from '../../components/AdContainer';
 import SEOHead from '../../components/SEOHead';
+import RelatedSeoTools from '../../components/RelatedSeoTools';
 import API_BASE_URL from '../../utils/api';
 
 const KeywordResearch = () => {
@@ -18,6 +24,23 @@ const KeywordResearch = () => {
         maxKD: 100,
         search: ''
     });
+    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const TOOL_COST = 15;
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    setUserData(snapshot.val());
+                });
+            } else {
+                setUserData(null);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     const filteredKeywords = results?.keywords.filter(kw => {
         const matchesSearch = kw.term.toLowerCase().includes(filters.search.toLowerCase());
@@ -68,11 +91,23 @@ const KeywordResearch = () => {
         e.preventDefault();
         if (!query.trim()) return;
 
+        if (!auth.currentUser) {
+            navigate('/login');
+            return;
+        }
+
+        if (!userData || (userData.powers || 0) < TOOL_COST) {
+            alert(`Insufficient Coal! You need ${TOOL_COST} 🔥 but have ${userData?.powers || 0} 🔥.`);
+            return;
+        }
+
         setLoading(true);
         setResults(null);
         setCompetitors([]);
 
         try {
+            await deductPowers(auth.currentUser.uid, TOOL_COST);
+
             // Parallel Fetch: Keywords + Competitors
             const [kwRes, compRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/api/keywords?q=${encodeURIComponent(query)}`),
@@ -173,7 +208,7 @@ const KeywordResearch = () => {
                                         <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
                                         <span className="text-xs animate-pulse">{loadingMessage}</span>
                                     </div>
-                                ) : 'Search'}
+                                ) : 'Search (15 🔥)'}
                             </button>
                         </div>
                     </form>
@@ -344,6 +379,24 @@ const KeywordResearch = () => {
                         </div>
                     </motion.div>
                 )}
+
+                {/* Next Step CTA */}
+                {results && !loading && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        className="mt-12 p-8 rounded-3xl bg-gradient-to-r from-purple-900/10 to-transparent border border-purple-500/20 flex flex-col md:flex-row items-center justify-between gap-6"
+                    >
+                        <div>
+                            <h4 className="text-xl font-bold text-white mb-1">Ready to create content?</h4>
+                            <p className="text-sm text-gray-500">Turn these keywords into a high-ranking post instantly with our AI writer.</p>
+                        </div>
+                        <Link to="/tools/blog-writer" className="px-8 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-500 transition-all active:scale-95 whitespace-nowrap">
+                            Open AI Blog Writer →
+                        </Link>
+                    </motion.div>
+                )}
             </main>
 
             {/* Ad Space - Bottom */}
@@ -352,30 +405,7 @@ const KeywordResearch = () => {
             </div>
 
             {/* Discover More Tools Section */}
-            <section className="py-20 border-t border-gray-900 bg-black">
-                <div className="max-w-7xl mx-auto px-6">
-                    <h2 className="text-2xl font-bold text-white mb-8 text-center">Discover More Tools</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Link to="/tools/keyword-research" className="block group">
-                            <div className="bg-gray-900 border border-purple-500/30 p-6 rounded-xl h-full hover:bg-gray-800 transition-colors">
-                                <div className="text-3xl mb-3">🔍</div>
-                                <h3 className="font-bold text-white mb-1">Keyword Research</h3>
-                                <p className="text-sm text-gray-400">Find profitable keywords instantly.</p>
-                            </div>
-                        </Link>
-                        <div className="bg-gray-900/50 border border-gray-800 p-6 rounded-xl h-full opacity-60 cursor-not-allowed">
-                            <div className="text-3xl mb-3">⚡</div>
-                            <h3 className="font-bold text-gray-300 mb-1">Speed Analyzer</h3>
-                            <p className="text-sm text-gray-500">Analyze site performance (Coming Soon).</p>
-                        </div>
-                        <div className="bg-gray-900/50 border border-gray-800 p-6 rounded-xl h-full opacity-60 cursor-not-allowed">
-                            <div className="text-3xl mb-3">🔗</div>
-                            <h3 className="font-bold text-gray-300 mb-1">Backlink Checker</h3>
-                            <p className="text-sm text-gray-500">Monitor your link profile (Coming Soon).</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <RelatedSeoTools currentToolPath="/tools/keyword-research" />
 
             <Footer />
         </div>

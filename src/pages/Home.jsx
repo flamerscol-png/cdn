@@ -5,7 +5,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { motion } from 'framer-motion';
 import Footer from '../components/Footer';
 import AdBanner from '../components/AdBanner';
+import PromoAd from '../components/PromoAd';
 import SEOHead from '../components/SEOHead';
+import SlideAd from '../components/SlideAd';
 
 const Home = () => {
     const [user, setUser] = useState(null);
@@ -41,8 +43,9 @@ const Home = () => {
             />
             {/* Minimalist Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-[#ff4d00]/5 rounded-full blur-[120px]" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-orange-900/5 rounded-full blur-[120px]" />
+                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-[#ff4d00]/5 rounded-full blur-[150px]" />
+                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-orange-900/5 rounded-full blur-[150px]" />
+                <div className="absolute top-[40%] left-[50%] w-[30%] h-[30%] bg-[#ff4d00]/3 rounded-full blur-[100px]" />
             </div>
 
             <main className="relative z-10">
@@ -64,7 +67,7 @@ const Home = () => {
 
                         <h1 className="text-5xl md:text-8xl font-black mb-8 tracking-tightest leading-[0.9] text-white">
                             Search Intelligence <br />
-                            <span className="text-[#ff4d00]">Perfected.</span>
+                            <span className="gradient-text">Perfected.</span>
                         </h1>
 
                         <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed font-medium">
@@ -72,17 +75,17 @@ const Home = () => {
                         </p>
 
                         <div className="flex flex-col sm:flex-row justify-center gap-4">
-                            <Link to={user ? "/dashboard" : "/signup"} className="px-10 py-4 bg-[#ff4d00] text-white font-extrabold text-lg rounded-xl hover:brightness-110 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl shadow-[#ff4d00]/20">
+                            <Link to={user ? "/dashboard" : "/signup"} className="px-10 py-4 bg-[#ff4d00] text-white font-extrabold text-lg rounded-xl hover:brightness-110 transition-all duration-300 hover:scale-[1.02] active:scale-95 shadow-2xl shadow-[#ff4d00]/20 hover:shadow-[#ff4d00]/40">
                                 {user ? "Go to Dashboard" : "Start for Free"}
                             </Link>
-                            <Link to="/seo-tools" className="px-10 py-4 bg-[#121212] text-white font-extrabold text-lg rounded-xl border border-white/5 hover:bg-[#1a1a1a] transition-all hover:scale-[1.02] active:scale-95">
+                            <Link to="/seo-tools" className="px-10 py-4 bg-[#121212] text-white font-extrabold text-lg rounded-xl border border-white/5 hover:bg-[#1a1a1a] hover:border-[#ff4d00]/20 transition-all duration-300 hover:scale-[1.02] active:scale-95">
                                 Explore Tools
                             </Link>
                         </div>
                     </motion.div>
                 </section>
 
-                <AdBanner size="leaderboard" />
+                <SlideAd />
 
                 {/* Features Section */}
                 <section className="py-24 px-6 relative">
@@ -112,23 +115,20 @@ const Home = () => {
                             className="grid grid-cols-1 md:grid-cols-3 gap-6"
                         >
                             {[
-                                {
-                                    title: "Rank Tracker",
-                                    desc: "Native localized scraping with GL/HL support. Accuracy without the enterprise cost.",
-                                    icon: "🎯",
-                                    tag: "ACCURACY"
-                                },
+
                                 {
                                     title: "AI Blog Writer",
                                     desc: "Generate professional-grade content with Vertex AI. Structured, semantic, and human-ready.",
                                     icon: "✍️",
-                                    tag: "AI POWERED"
+                                    tag: "AI POWERED",
+                                    price: 40
                                 },
                                 {
                                     title: "Site Auditor",
                                     desc: "12+ technical SEO checks performed in seconds. Deep crawl analysis with zero bloat.",
                                     icon: "🔍",
-                                    tag: "CLEAN CODE"
+                                    tag: "CLEAN CODE",
+                                    price: 30
                                 }
                             ].map((feature, index) => (
                                 <motion.div
@@ -139,13 +139,15 @@ const Home = () => {
                                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
                                         <div className="text-8xl font-black grayscale">{feature.icon}</div>
                                     </div>
-
-                                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-black tracking-widest text-[#ff4d00] mb-6">
-                                        {feature.tag}
-                                    </span>
-
-                                    <div className="text-4xl mb-6 bg-[#050505] p-4 rounded-2xl border border-white/5 shadow-inner">
-                                        {feature.icon}
+                                    <div className="flex justify-between items-center w-full mb-6">
+                                        <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-black tracking-widest text-[#ff4d00] uppercase">
+                                            {feature.tag}
+                                        </div>
+                                        {feature.price && (
+                                            <div className="px-3 py-1 bg-[#ff4d00]/10 border border-[#ff4d00]/20 rounded-full text-[10px] font-black text-[#ff4d00]">
+                                                {feature.price} 🔥
+                                            </div>
+                                        )}
                                     </div>
                                     <h3 className="text-2xl font-black mb-4 text-white group-hover:text-[#ff4d00] transition-colors">{feature.title}</h3>
                                     <p className="text-gray-400 font-medium leading-relaxed mb-8">{feature.desc}</p>
@@ -159,7 +161,7 @@ const Home = () => {
                     </div>
                 </section>
 
-                <AdBanner size="leaderboard" />
+                <PromoAd variant="leaderboard" />
 
                 {/* Light Trust Section */}
                 <section className="py-20 border-y border-white/5 bg-[#050505]">
@@ -189,7 +191,7 @@ const Home = () => {
                         viewport={{ once: true }}
                         className="max-w-3xl mx-auto relative z-10"
                     >
-                        <h2 className="text-4xl md:text-7xl font-black mb-8 tracking-tightest leading-tight">Elite SEO. <br /><span className="text-[#ff4d00]">Simplified.</span></h2>
+                        <h2 className="text-4xl md:text-7xl font-black mb-8 tracking-tightest leading-tight">Elite SEO. <br /><span className="gradient-text">Simplified.</span></h2>
                         <p className="text-xl text-gray-400 font-medium mb-12 leading-relaxed">Join the next generation of digital creators using Flamers Coal to scale their presence with precision.</p>
                         <Link to={user ? "/dashboard" : "/signup"} className="inline-block px-12 py-5 bg-white text-black font-black text-xl rounded-xl hover:bg-gray-200 transition-all hover:scale-[1.05] active:scale-95 shadow-2xl">
                             Create Account

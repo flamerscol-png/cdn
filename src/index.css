@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 :root {
   --brand-blaze: #ff4d00;
@@ -10,41 +11,125 @@
   --text-muted: #888888;
 }
 
-/* Global Styles */
+/* ===== Global Styles ===== */
 body {
-  background-color: var(--bg-dark);
+  background-color: var(--bg-darker);
   color: #ffffff;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Modrinth-style Utilities */
+/* Smooth Scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ===== Custom Selection ===== */
+::selection {
+  background-color: rgba(255, 77, 0, 0.25);
+  color: #fff;
+}
+
+/* ===== Custom Scrollbar ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-darker);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 77, 0, 0.2);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 77, 0, 0.4);
+}
+
+/* ===== Modrinth Card System ===== */
 .modrinth-card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
+  border-radius: 16px;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 0.3s ease,
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
 }
 
 .modrinth-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   background-color: var(--bg-surface-hover);
-  border-color: rgba(255, 77, 0, 0.3);
+  border-color: rgba(255, 77, 0, 0.25);
+  box-shadow: 0 8px 32px rgba(255, 77, 0, 0.06), 0 0 0 1px rgba(255, 77, 0, 0.1);
 }
 
+/* ===== Button System ===== */
 .btn-primary {
   background-color: var(--brand-blaze);
   color: white;
-  font-weight: 600;
-  border-radius: 8px;
+  font-weight: 700;
+  border-radius: 12px;
   padding: 0.75rem 1.5rem;
-  transition: filter 0.2s ease, transform 0.1s active;
+  transition: filter 0.2s ease, transform 0.15s ease, box-shadow 0.3s ease;
 }
 
 .btn-primary:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.15);
+  box-shadow: 0 4px 24px rgba(255, 77, 0, 0.25);
 }
 
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+/* ===== Glow Badge ===== */
+.glow-badge {
+  position: relative;
+}
+.glow-badge::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 77, 0, 0.3), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+.glow-badge:hover::after {
+  opacity: 1;
+}
+
+/* ===== Pulse Dot ===== */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 77, 0, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 77, 0, 0); }
+}
+.pulse-dot {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ===== Shimmer Loading ===== */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-surface-hover) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ===== Text Brand ===== */
 .text-brand {
-  color: var(--brand-green);
+  color: var(--brand-blaze);
+}
+
+/* ===== Gradient Text ===== */
+.gradient-text {
+  background: linear-gradient(135deg, #ff4d00, #ff8c00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

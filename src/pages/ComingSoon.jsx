@@ -1,10 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import SEOHead from '../components/SEOHead';
 
 const ComingSoon = ({ title }) => {
     return (
         <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
+            <SEOHead 
+                title={title || "Coming Soon"} 
+                description="New SEO and YouTube growth features are coming soon to FlameCoal." 
+            />
             {/* Background Gradient Mesh */}
             <div className="fixed inset-0 z-0 opacity-20 pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-900/50 rounded-full blur-[100px]" />

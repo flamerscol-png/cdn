@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, database } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { deductPowers } from '../../utils/db';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Footer from '../../components/Footer';
 import AdBanner from '../../components/AdBanner';
 import SEOHead from '../../components/SEOHead';
+import RelatedSeoTools from '../../components/RelatedSeoTools';
 import API_BASE_URL from '../../utils/api';
 
 const BlogWriter = () => {
@@ -14,9 +19,44 @@ const BlogWriter = () => {
     const [loadingMessage, setLoadingMessage] = useState('');
     const [result, setResult] = useState(null);
     const [copied, setCopied] = useState(false);
+    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const TOOL_COST = 40;
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    setUserData(snapshot.val());
+                });
+            } else {
+                setUserData(null);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     const generateBlog = async () => {
         if (!topic.trim()) return;
+
+        if (!auth.currentUser) {
+            navigate('/login');
+            return;
+        }
+
+        if (!userData || (userData.powers || 0) < TOOL_COST) {
+            setResult({
+                title: "Access Denied",
+                content: `<div class="p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
+                    <h3>Insufficient Coal!</h3>
+                    <p>You need ${TOOL_COST} 🔥 to use this tool but have ${userData?.powers || 0} 🔥.</p>
+                </div>`,
+                wordCount: 0,
+                seoScore: 0
+            });
+            return;
+        }
 
         setLoading(true);
         setResult(null);
@@ -36,6 +76,8 @@ const BlogWriter = () => {
         });
 
         try {
+            await deductPowers(auth.currentUser.uid, TOOL_COST);
+
             const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
             if (!GROQ_API_KEY) throw new Error("Missing Groq API Key (VITE_GROQ_API_KEY)");
 
@@ -129,9 +171,12 @@ const BlogWriter = () => {
                         Content Generation AI
                     </div>
                     <h1 className="text-4xl md:text-6xl font-black mb-4 tracking-tight">AI Blog <span className="text-[#ff4d00]">Writer.</span></h1>
-                    <p className="text-gray-400 text-lg md:text-xl font-medium max-w-2xl">
+                    <p className="text-gray-400 text-lg md:text-xl font-medium max-w-2xl mb-6">
                         Instantly generate professional, structured, and search-optimized long-form content.
                     </p>
+                    <Link to="/tools/keyword-research" className="inline-flex items-center gap-2 text-[#ff4d00] hover:text-[#ff4d00]/80 transition-all font-bold text-sm bg-[#ff4d00]/10 px-4 py-2 rounded-lg border border-[#ff4d00]/20 hover:scale-[1.02] active:scale-95">
+                        <span className="text-base">🔍</span> Need keywords? Research first
+                    </Link>
                 </div>
 
                 <AdBanner size="leaderboard" />
@@ -181,7 +226,7 @@ const BlogWriter = () => {
 
                             {!loading && topic.trim() && (
                                 <div className="text-center mt-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                                    Costs 150 🔥 Coal
+                                    Costs 40 🔥 Coal
                                 </div>
                             )}
                         </div>
@@ -243,6 +288,8 @@ const BlogWriter = () => {
                     </div>
                 </div>
             </div>
+
+            <RelatedSeoTools currentToolPath="/tools/blog-writer" />
 
             <Footer />
         </div>

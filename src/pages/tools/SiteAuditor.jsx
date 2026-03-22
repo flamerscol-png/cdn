@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, database } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { deductPowers } from '../../utils/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import Footer from '../../components/Footer';
 import AdContainer from '../../components/AdContainer';
 import SEOHead from '../../components/SEOHead';
 import API_BASE_URL from '../../utils/api';
 import AdBanner from '../../components/AdBanner';
+import RelatedSeoTools from '../../components/RelatedSeoTools';
 
 // ─────────────────────────── Helper Sub-Components ───────────────────────────
 
@@ -187,6 +192,23 @@ const SiteAuditor = () => {
     const [copied, setCopied] = useState(false);
     const [activeTab, setActiveTab] = useState('issues');
     const [auditResult, setAuditResult] = useState(null);
+    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const TOOL_COST = 30;
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    setUserData(snapshot.val());
+                });
+            } else {
+                setUserData(null);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         let interval;
@@ -329,10 +351,23 @@ const SiteAuditor = () => {
     const handleAudit = async (e) => {
         e.preventDefault();
         if (!url.trim()) return;
+
+        if (!auth.currentUser) {
+            navigate('/login');
+            return;
+        }
+
+        if (!userData || (userData.powers || 0) < TOOL_COST) {
+            alert(`Insufficient Coal! You need ${TOOL_COST} 🔥 but have ${userData?.powers || 0} 🔥.`);
+            return;
+        }
+
         setLoading(true);
         setAuditResult(null);
 
         try {
+            await deductPowers(auth.currentUser.uid, TOOL_COST);
+
             const clientResult = await performClientSideAudit(url, keyword);
             setAuditResult(clientResult);
         } catch (error) {
@@ -779,6 +814,9 @@ const SiteAuditor = () => {
                 )}
 
             </main>
+
+            <RelatedSeoTools currentToolPath="/tools/site-auditor" />
+
             <Footer />
         </div>
     );

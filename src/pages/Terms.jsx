@@ -1,16 +1,24 @@
 import React from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEOHead from '../components/SEOHead';
+import AdBanner from '../components/AdBanner';
 
 const Terms = () => {
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
+            <SEOHead 
+                title="Terms of Service" 
+                description="Read the terms of service and usage guidelines for FlameCoal's SEO and YouTube tools." 
+            />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-4xl mx-auto">
                 <div className="mb-16">
                     <h1 className="text-4xl md:text-6xl font-black mb-4 tracking-tighter uppercase">Terms of <span className="text-[#ff4d00]">Service.</span></h1>
                     <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Last Updated: October 2023</p>
                 </div>
+
+                <AdBanner size="leaderboard" className="mb-12" />
 
                 <div className="prose prose-invert max-w-none space-y-12">
                     <section>

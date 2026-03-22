@@ -1,0 +1,17 @@
+{
+  "name": "FlameCoal | Elite SEO & YouTube Tools",
+  "short_name": "FlameCoal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#ff4d00",
+  "description": "Precision-engineered SEO and YouTube growth tools for digital experts and content creators.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

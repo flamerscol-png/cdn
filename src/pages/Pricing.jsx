@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { auth } from '../firebase';
 import AdBanner from '../components/AdBanner';
+import SEOHead from '../components/SEOHead';
 
 const Pricing = () => {
     const navigate = useNavigate();
@@ -17,11 +18,11 @@ const Pricing = () => {
             name: "Starter Hub",
             price: "$3",
             usdNum: 3,
-            powers: "1,000",
+            powers: "5,000",
             emoji: "⚡",
             desc: "Kickstart your SEO strategy with essential coal.",
             features: [
-                "1,000 🔥 Coal Included",
+                "5,000 🔥 Coal Included",
                 "Full Access to All Tools",
                 "No Expiry on Coal",
                 "Community Support",
@@ -36,11 +37,11 @@ const Pricing = () => {
             name: "Pro Pack",
             price: "$10",
             usdNum: 10,
-            powers: "5,000",
+            powers: "10,000",
             emoji: "🚀",
             desc: "For serious creators fueling multiple niches at scale.",
             features: [
-                "5,000 🔥 Coal Included",
+                "10,000 🔥 Coal Included",
                 "Priority AI Processing",
                 "Early Access Features",
                 "Ad-Free Experience",
@@ -79,8 +80,8 @@ const Pricing = () => {
     };
 
     const UPI_LINKS = {
-        "Starter Hub": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=250&cu=INR&tn=Starter+Hub+1000+Coal",
-        "Pro Pack": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=832&cu=INR&tn=Pro+Pack+5000+Coal",
+        "Starter Hub": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=250&cu=INR&tn=Starter+Hub+5000+Coal",
+        "Pro Pack": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=832&cu=INR&tn=Pro+Pack+10000+Coal",
         "Elite Bulk": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=2085&cu=INR&tn=Elite+Bulk+15000+Coal"
     };
 
@@ -114,6 +115,10 @@ const Pricing = () => {
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden selection:bg-[#ff4d00]/30">
+            <SEOHead 
+                title="Pricing Plans" 
+                description="Flexible pricing for FlameCoal. Buy Coal once, use forever. No subscriptions, no hidden fees." 
+            />
             <Navbar />
 
             {/* ── UPI Modal ── */}
@@ -278,10 +283,11 @@ const Pricing = () => {
                                 <div className="mb-6">
                                     <div className="text-3xl mb-3">{tier.emoji}</div>
                                     <div className="text-xs font-black uppercase tracking-widest text-gray-500 mb-1">{tier.name}</div>
-                                    <div className="flex items-end gap-2 mb-2">
+                                    <div className="flex items-end gap-2 mb-1">
                                         <span className="text-5xl font-black">{tier.price}</span>
                                         <span className="text-gray-500 font-bold pb-1">one-time</span>
                                     </div>
+                                    <p className="text-[#ff4d00] text-[10px] font-black uppercase tracking-tighter mb-2">You will receive coal in 24 hrs</p>
                                     <div className={`inline-flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-full ${tier.highlight ? 'bg-[#ff4d00]/15 text-[#ff4d00] border border-[#ff4d00]/20' : 'bg-white/5 text-gray-300 border border-white/10'}`}>
                                         🔥 {tier.powers} Coal
                                     </div>

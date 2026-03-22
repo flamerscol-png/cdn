@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Block admin and sensitive routes
+Disallow: /admin/
+Disallow: /admin/tickets
+
+# Sitemap location
+Sitemap: https://flamercoal.web.app/sitemap.xml

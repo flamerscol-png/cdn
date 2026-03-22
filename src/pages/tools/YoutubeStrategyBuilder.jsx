@@ -10,6 +10,7 @@ import { onValue, ref, push, set, remove, get } from 'firebase/database';
 import { deductPowers } from '../../utils/db';
 import API_BASE_URL from '../../utils/api';
 import AdBanner from '../../components/AdBanner';
+import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
 
 const formatCompactNumber = (number) => {
     if (number === null || number === undefined) return "0";
@@ -212,8 +213,8 @@ const YoutubeStrategyBuilder = () => {
     const [showHistory, setShowHistory] = useState(false);
     const [rerollLoading, setRerollLoading] = useState({});
 
-    const STRATEGY_COST = 100;
-    const FOLLOWUP_COST = 25;
+    const STRATEGY_COST = 25;
+    const FOLLOWUP_COST = 5;
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -298,8 +299,18 @@ ${strategy.executionPlan?.map(p => `• ${p}`).join('\n') || 'None'}
         setSeoLoading(p => ({ ...p, [idx]: true }));
         try {
             const result = await callGroq(
-                'You are a YouTube SEO expert. Output ONLY valid JSON.',
-                `Generate 3 SEO-optimized title variations and 5 relevant YouTube tags for this video concept:\nTitle: "${idea.title}"\nConcept: ${idea.concept}\n\nOutput JSON: { "titles": ["title1","title2","title3"], "tags": ["tag1","tag2","tag3","tag4","tag5"] }`
+                'You are a Master YouTube Strategist (MrBeast level). Output ONLY valid JSON.',
+                `Generate 3 high-intensity, viral YouTube title variations and 5 trending tags for this concept.
+                
+                Use these frameworks:
+                1. THE CURIOSITY GAP (e.g., "I spent $10k on...")
+                2. PATTERN INTERRUPT (Unexpected visuals/words)
+                3. EXTREME STAKES (Success/Failure)
+                
+                Concept: "${idea.title}"
+                Context: ${idea.concept}
+                
+                Output JSON: { "titles": ["title1","title2","title3"], "tags": ["tag1","tag2","tag3","tag4","tag5"] }`
             );
             setSeoData(p => ({ ...p, [idx]: result }));
             setSeoExpanded(p => ({ ...p, [idx]: true }));
@@ -352,9 +363,18 @@ ${strategy.executionPlan?.map(p => `• ${p}`).join('\n') || 'None'}
         setRerollLoading(p => ({ ...p, [section]: true }));
         try {
             const sectionPrompts = {
-                titles: `Generate 5 NEW and COMPLETELY DIFFERENT viral video ideas for a ${socialBladeData?.channelType || 'YouTube'} channel (@${handle}). Use different viral frameworks (challenge, comparison, reaction, contrarian, ranking). Each title must have numbers/superlatives, create curiosity gaps, be 8-12 words. Output JSON: { "remixedIdeas": [{ "title": "...", "concept": "...", "thumbnailHook": "...", "hookLogic": "..." }] }`,
-                hooks: `Generate 3 NEW viral hooks (first 5-second opening lines) for a ${socialBladeData?.channelType || 'YouTube'} channel (@${handle}). Use pattern interrupts. Output JSON: { "viralHooks": ["hook1", "hook2", "hook3"] }`,
-                gaps: `Generate 3 NEW content gaps for a ${socialBladeData?.channelType || 'YouTube'} channel (@${handle}) — specific untapped topics with high search demand. Output JSON: { "contentGaps": ["gap1", "gap2", "gap3"] }`
+                titles: `Generate 5 NEW hyper-viral video ideas for a ${socialBladeData?.channelType || 'YouTube'} channel (@${handle}). 
+                
+                MUST USE ADVANCED FRAMEWORKS:
+                - Contrarian (Why [Popular Thing] is actually BAD)
+                - Extreme Challenges (I did X for 100 days)
+                - Comparison (Cheap vs Expensive)
+                - Pattern Interrupt (The truth about X)
+                
+                Each title must be high-stakes, evoke emotion (fear, joy, awe), and create a massive curiosity gap. 10-14 words max.
+                Output JSON: { "remixedIdeas": [{ "title": "...", "concept": "...", "thumbnailHook": "...", "hookLogic": "..." }] }`,
+                hooks: `Generate 3 NEW high-retention viral hooks for (@${handle}). Use the "Pattern Interrupt" or "False Reality" framework (e.g., "Stop doing X right now" or "Everything you know about X is a lie"). Output JSON: { "viralHooks": ["hook1", "hook2", "hook3"] }`,
+                gaps: `Generate 3 NEW high-volume content gaps for (@${handle}). Focus on untapped, low-competition but high-demand "Search-to-Viral" topics. Output JSON: { "contentGaps": ["gap1", "gap2", "gap3"] }`
             };
             const result = await callGroq('You are a YouTube viral strategist. Output ONLY valid JSON.', sectionPrompts[section]);
             setStrategy(prev => {
@@ -407,13 +427,13 @@ COMPETITOR: @${competitorHandle || 'None'}
 DATA: ${statsContext}
 
 INSTRUCTIONS (YOU MUST INCLUDE ALL SECTIONS):
-1. **CHANNEL AUDIT**: Identify exactly what is WRONG with the current channel.
-2. **CONTENT REQUIREMENTS**: Specific mix of Shorts/Long-form and content style.
-3. **NICHE SCORE**: 1-100 difficulty.
-4. **VIRAL IDEAS**: 5 hyper-specific ideas with viral hooks.
-5. **WEEKLY SCHEDULE**: 7-day content plan.
-6. **ACTIONABLE GROWTH MAP**: 3 immediate critical changes.
-7. **PERFORMANCE FORECAST**: You MUST project Growth Velocity for the next 6 months.
+1. **CHANNEL AUDIT**: Brutally honest assessment of what is stopping growth.
+2. **CONTENT REQUIREMENTS**: The specific "Viral Signature" they should adopt.
+3. **NICHE SCORE**: 1-100 competition level.
+4. **VIRAL IDEAS**: 5 hyper-specific ideas using elite frameworks (Curiosity Gaps, Pattern Interrupts, Extreme Stakes). Titles must be "click-worthy" not just "SEO friendly".
+5. **WEEKLY SCHEDULE**: A high-efficiency content calendar.
+6. **ACTIONABLE GROWTH MAP**: 3 immediate critical changes for 10x ROI.
+7. **PERFORMANCE FORECAST**: Projected growth velocity.
 
 Output ONLY this JSON structure (don't miss performanceVerdict or velocityPoints):
 {
@@ -683,41 +703,41 @@ Output ONLY this JSON structure (don't miss performanceVerdict or velocityPoints
                                             {rerollLoading.titles ? <FaSpinner className="animate-spin" /> : <FaRedo />} Re-roll ({FOLLOWUP_COST} 🔥)
                                         </button>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                         {strategy.contentStrategy?.remixedIdeas?.map((idea, idx) => (
-                                            <div key={idx} className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-[#ff0000]/50 transition-all flex flex-col gap-4">
+                                            <div key={idx} className="bg-[#111] p-3 rounded-xl border border-white/5 hover:border-[#ff0000]/50 transition-all flex flex-col gap-3">
                                                 <div>
-                                                    <h5 className="text-white font-black text-xl mb-2 leading-tight">"{idea.title}"</h5>
-                                                    <p className="text-gray-400 text-xs leading-relaxed">{idea.concept}</p>
+                                                    <h5 className="text-white font-black text-sm mb-1 leading-tight">"{idea.title}"</h5>
+                                                    <p className="text-gray-500 text-[10px] leading-relaxed line-clamp-2">{idea.concept}</p>
                                                 </div>
-                                                <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-                                                    <div className="bg-[#ff0000]/5 p-3 rounded-lg border border-[#ff0000]/10">
-                                                        <p className="text-[10px] text-[#ff0000] font-bold uppercase mb-1">📸 Thumbnail:</p>
-                                                        <p className="text-white text-[11px] leading-snug italic">{idea.thumbnailHook}</p>
+                                                <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+                                                    <div className="bg-[#ff0000]/5 p-2 rounded-lg border border-[#ff0000]/10">
+                                                        <p className="text-[8px] text-[#ff0000] font-bold uppercase mb-0.5">📸 Thumb:</p>
+                                                        <p className="text-white text-[9px] leading-snug italic line-clamp-2">{idea.thumbnailHook}</p>
                                                     </div>
-                                                    <div className="bg-blue-500/5 p-3 rounded-lg border border-blue-500/10">
-                                                        <p className="text-[10px] text-blue-500 font-bold uppercase mb-1">🧠 Hook Logic:</p>
-                                                        <p className="text-gray-400 text-[10px] leading-snug">{idea.hookLogic}</p>
+                                                    <div className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10">
+                                                        <p className="text-[8px] text-blue-500 font-bold uppercase mb-0.5">🧠 Hook:</p>
+                                                        <p className="text-gray-400 text-[8px] leading-snug line-clamp-2">{idea.hookLogic}</p>
                                                     </div>
                                                 </div>
                                                 {/* Action Buttons */}
-                                                <div className="flex gap-2 mt-auto">
-                                                    <button onClick={() => generateSEOTitles(idea, idx)} disabled={seoLoading[idx]} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-bold hover:bg-purple-500/20 transition-all">
-                                                        {seoLoading[idx] ? <FaSpinner className="animate-spin" /> : <FaTags />} SEO Titles
+                                                <div className="flex gap-1 mt-auto">
+                                                    <button onClick={() => generateSEOTitles(idea, idx)} disabled={seoLoading[idx]} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-bold hover:bg-purple-500/20 transition-all">
+                                                        {seoLoading[idx] ? <FaSpinner className="animate-spin" /> : <FaTags />} SEO
                                                     </button>
-                                                    <button onClick={() => generateScript(idea)} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-bold hover:bg-green-500/20 transition-all">
-                                                        <FaScroll /> Script ({FOLLOWUP_COST} 🔥)
+                                                    <button onClick={() => generateScript(idea)} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[8px] font-bold hover:bg-green-500/20 transition-all">
+                                                        <FaScroll /> Script
                                                     </button>
                                                 </div>
                                                 {/* SEO Expanded */}
                                                 <AnimatePresence>
                                                     {seoExpanded[idx] && seoData[idx] && (
-                                                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden bg-purple-500/5 rounded-lg p-3 border border-purple-500/10">
-                                                            <p className="text-[9px] text-purple-400 font-bold uppercase mb-2">SEO Title Variations:</p>
-                                                            {seoData[idx].titles?.map((t, i) => <p key={i} className="text-white text-xs mb-1">• {t}</p>)}
-                                                            <p className="text-[9px] text-purple-400 font-bold uppercase mt-3 mb-1">Tags:</p>
+                                                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden bg-purple-500/5 rounded-lg p-2 border border-purple-500/10">
+                                                            <p className="text-[7px] text-purple-400 font-bold uppercase mb-1">Titles:</p>
+                                                            {seoData[idx].titles?.map((t, i) => <p key={i} className="text-white text-[9px] mb-0.5 leading-tight">• {t}</p>)}
+                                                            <p className="text-[7px] text-purple-400 font-bold uppercase mt-2 mb-1">Tags:</p>
                                                             <div className="flex flex-wrap gap-1">
-                                                                {seoData[idx].tags?.map((tag, i) => <span key={i} className="bg-purple-500/20 text-purple-300 text-[9px] px-2 py-0.5 rounded-full">{tag}</span>)}
+                                                                {seoData[idx].tags?.map((tag, i) => <span key={i} className="bg-purple-500/20 text-purple-300 text-[7px] px-1.5 py-0.5 rounded-full">{tag}</span>)}
                                                             </div>
                                                         </motion.div>
                                                     )}
@@ -891,6 +911,7 @@ Output ONLY this JSON structure (don't miss performanceVerdict or velocityPoints
                 )}
             </AnimatePresence>
 
+            <RelatedYoutubeTools currentToolPath="/tools/youtube-strategy-builder" />
             <Footer />
         </div>
     );

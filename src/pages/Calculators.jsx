@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEOHead from '../components/SEOHead';
+import AdBanner from '../components/AdBanner';
+import PromoAd from '../components/PromoAd';
 
 const CalculatorCard = ({ title, children, icon }) => (
     <div className="modrinth-card p-8 border-white/5 h-full">
@@ -69,6 +72,10 @@ const Calculators = () => {
 
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
+            <SEOHead
+                title="Business & Health Calculators"
+                description="Calculate ROI, Profit Margins, BMI and more with our suite of simple, efficient calculators."
+            />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-7xl mx-auto">
                 <div className="text-center mb-20">
@@ -80,9 +87,12 @@ const Calculators = () => {
                         Business <span className="text-[#ff4d00]">&</span> Health <br />
                         <span className="text-gray-500">Calculators.</span>
                     </motion.h1>
-                    <p className="text-gray-500 text-xl max-w-2xl mx-auto font-medium">
+                    <p className="text-gray-500 text-xl max-w-2xl mx-auto font-medium mb-6">
                         Essential tools for growth, efficiency, and wellness.
                     </p>
+                    <Link to="/converters" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-all font-bold text-sm bg-white/5 px-4 py-2 rounded-lg border border-white/10 hover:border-white/20">
+                        <span className="text-base">🔄</span> Need to convert data? Try Converters
+                    </Link>
 
                     {error && (
                         <motion.div
@@ -95,6 +105,8 @@ const Calculators = () => {
                         </motion.div>
                     )}
                 </div>
+
+                <AdBanner size="leaderboard" />
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* ROI Calculator */}
@@ -257,6 +269,8 @@ const Calculators = () => {
                         </div>
                     </CalculatorCard>
                 </div>
+
+                <PromoAd variant="strip" className="mt-8" />
             </main>
             <Footer />
         </div>

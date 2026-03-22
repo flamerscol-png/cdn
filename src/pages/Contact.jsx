@@ -2,10 +2,16 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import AdBanner from '../components/AdBanner';
+import SEOHead from '../components/SEOHead';
 
 const Contact = () => {
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
+            <SEOHead 
+                title="Contact Support" 
+                description="Get in touch with the FlameCoal team for support, business inquiries, or feature requests." 
+            />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-4xl mx-auto">
                 <div className="text-center mb-16">
@@ -53,6 +59,8 @@ const Contact = () => {
                         </div>
                     </div>
                 </div>
+
+                <AdBanner size="leaderboard" className="mt-8" />
 
                 <div className="mt-12 text-center text-gray-600 text-[10px] font-black uppercase tracking-tighter">
                     Flamerscoal — Precision Search Intelligence • Built for the Fast Lane

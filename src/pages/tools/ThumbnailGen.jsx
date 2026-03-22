@@ -1,25 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, database } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { deductPowers } from '../../utils/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Footer from '../../components/Footer';
 import AdBanner from '../../components/AdBanner';
 import SEOHead from '../../components/SEOHead';
 import API_BASE_URL from '../../utils/api';
+import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
 
 const ThumbnailGen = () => {
     const [topic, setTopic] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
+    const [generatingImage, setGeneratingImage] = useState({}); // conceptIdx: boolean
+    const [generatedImages, setGeneratedImages] = useState({}); // conceptIdx: imageUrl
+    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const TOOL_COST = 35;
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    setUserData(snapshot.val());
+                });
+            } else {
+                setUserData(null);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     const generateIdeas = async () => {
         if (!topic.trim()) return;
 
+        if (!auth.currentUser) {
+            navigate('/login');
+            return;
+        }
+
+        if (!userData || (userData.powers || 0) < TOOL_COST) {
+            setError(`Insufficient Coal! You need ${TOOL_COST} 🔥 but have ${userData?.powers || 0} 🔥.`);
+            return;
+        }
+
         setLoading(true);
         setResult(null);
         setError(null);
+        setGeneratedImages({});
 
         try {
+            await deductPowers(auth.currentUser.uid, TOOL_COST);
+
             const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
             if (!GROQ_API_KEY) throw new Error("Missing Groq API Key (VITE_GROQ_API_KEY)");
 
@@ -32,6 +69,11 @@ const ThumbnailGen = () => {
                 2. Text Overlay: Exactly 1-3 words of high-impact text.
                 3. Psychology: Why will a human being feel COMPELLED to click this?
                 4. Color Palette: HEX codes for a high-contrast scheme.
+                5. Image Prompt: A highly detailed, vivid image generation prompt (max 100 words). 
+                   - Describe a cinematic, high-impact scene.
+                   - Focus on dramatic lighting, intense facial expressions, and hyper-realistic details.
+                   - IMPORTANT: DO NOT include any text in the image. Focus purely on the visual composition and atmosphere.
+                   - Use style keywords like: "photorealistic, 8k, cinematic lighting, dramatic shadows, viral YouTube thumbnail style, high contrast, blurred background".
                 
                 Output ONLY this JSON structure:
                 {
@@ -41,21 +83,24 @@ const ThumbnailGen = () => {
                             "visual": "...",
                             "text": "...",
                             "psychology": "...",
-                            "colors": ["#...", "#..."]
+                            "colors": ["#...", "#..."],
+                            "image_prompt": "..."
                         },
                         {
                             "style": "The Extreme Contrast / Before & After",
                             "visual": "...",
                             "text": "...",
                             "psychology": "...",
-                            "colors": ["#...", "#..."]
+                            "colors": ["#...", "#..."],
+                            "image_prompt": "..."
                         },
                         {
                             "style": "The Authority / Scale",
                             "visual": "...",
                             "text": "...",
                             "psychology": "...",
-                            "colors": ["#...", "#..."]
+                            "colors": ["#...", "#..."],
+                            "image_prompt": "..."
                         }
                     ]
                 }
@@ -90,6 +135,36 @@ const ThumbnailGen = () => {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const generateThumbnailImage = async (conceptIdx, imagePrompt) => {
+        setGeneratingImage(prev => ({ ...prev, [conceptIdx]: true }));
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/api/generate-image`,
+                {
+                    headers: { 
+                        "Content-Type": "application/json",
+                    },
+                    method: "POST",
+                    body: JSON.stringify({ inputs: imagePrompt }),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.details || errorData.error || 'Generation failed');
+            }
+
+            const blob = await response.blob();
+            const imageUrl = URL.createObjectURL(blob);
+            setGeneratedImages(prev => ({ ...prev, [conceptIdx]: imageUrl }));
+        } catch (err) {
+            console.error("Image gen error:", err);
+            alert(`Image generation failed: ${err.message}`);
+        } finally {
+            setGeneratingImage(prev => ({ ...prev, [conceptIdx]: false }));
         }
     };
 
@@ -140,7 +215,7 @@ const ThumbnailGen = () => {
                             </button>
 
                             <div className="mt-4 flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-widest justify-center">
-                                <span>Costs 50 🔥 Coal</span>
+                                <span>Costs 35 🔥 Coal</span>
                                 <span className="w-1 h-1 rounded-full bg-gray-800"></span>
                                 <span className="text-[#ff0000]">Llama 3.3 Power</span>
                             </div>
@@ -180,7 +255,7 @@ const ThumbnailGen = () => {
                                             initial={{ opacity: 0, x: -20 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             transition={{ delay: idx * 0.1 }}
-                                            className="modrinth-card p-8 group hover:border-[#ff0000]/20 transition-all"
+                                            className="modrinth-card p-8 group hover:border-[#ff0000]/20 transition-all overflow-hidden"
                                         >
                                             <div className="flex flex-col md:flex-row gap-8">
                                                 <div className="flex-grow">
@@ -212,6 +287,40 @@ const ThumbnailGen = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        
+                                                        {/* Preview Generation Button */}
+                                                        <div className="pt-4 border-t border-white/5">
+                                                            {!generatedImages[idx] ? (
+                                                                <button
+                                                                    onClick={() => generateThumbnailImage(idx, concept.image_prompt)}
+                                                                    disabled={generatingImage[idx]}
+                                                                    className={`px-6 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${generatingImage[idx] ? 'bg-white/5 text-gray-500' : 'bg-white/10 text-white hover:bg-[#ff0000] hover:text-white'}`}
+                                                                >
+                                                                    {generatingImage[idx] ? 'Generating Illustration...' : 'Visual Preview'}
+                                                                </button>
+                                                            ) : (
+                                                                 <>
+                                                                     <div className="relative group/img rounded-xl overflow-hidden aspect-video bg-black/50 border border-white/10">
+                                                                         <img src={generatedImages[idx]} alt="Generated Thumbnail Layout" className="w-full h-full object-cover" />
+                                                                         
+                                                                         {/* Dynamic Text Overlay */}
+                                                                         <div className="absolute inset-0 flex items-center justify-center p-6 pointer-events-none">
+                                                                             <div className="text-3xl md:text-4xl font-[900] text-white uppercase tracking-tighter leading-none text-center drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] [text-shadow:2px_2px_0_#000,-2px_-2px_0_#000,2px_-2px_0_#000,-2px_2px_0_#000,4px_4px_0_#ff0000] transform -rotate-2 scale-110">
+                                                                                 {concept.text}
+                                                                             </div>
+                                                                         </div>
+
+                                                                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-auto">
+                                                                             <a href={generatedImages[idx]} download={`thumb-concept-${idx+1}.png`} className="px-4 py-2 bg-white text-black font-black text-[10px] uppercase tracking-widest rounded-lg">Download Background</a>
+                                                                         </div>
+                                                                     </div>
+                                                                     <p className="mt-3 text-[9px] text-gray-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                                                         <span className="w-1.5 h-1.5 rounded-full bg-yellow-500/50"></span>
+                                                                         Note: This is an AI-generated concept idea, not a final thumbnail.
+                                                                     </p>
+                                                                 </>
+                                                             )}
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -239,6 +348,7 @@ const ThumbnailGen = () => {
                 </div>
             </div>
 
+            <RelatedYoutubeTools currentToolPath="/tools/youtube-thumbnail-suggester" />
             <Footer />
         </div>
     );

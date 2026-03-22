@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, database } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { deductPowers } from '../../utils/db';
 import { motion } from 'framer-motion';
 import Footer from '../../components/Footer';
 import SEOHead from '../../components/SEOHead';
 import { FaYoutube, FaHeading, FaCopy, FaMagic } from 'react-icons/fa';
 import AdBanner from '../../components/AdBanner';
+import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
 
 const YoutubeTitleGenerator = () => {
     const [topic, setTopic] = useState('');
@@ -11,15 +16,44 @@ const YoutubeTitleGenerator = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [copiedIndex, setCopiedIndex] = useState(null);
     const [error, setError] = useState(null);
+    const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const TOOL_COST = 10;
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                const userRef = ref(database, `users/${user.uid}`);
+                onValue(userRef, (snapshot) => {
+                    setUserData(snapshot.val());
+                });
+            } else {
+                setUserData(null);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     const generateTitles = async (e) => {
         e.preventDefault();
         if (!topic.trim()) return;
 
+        if (!auth.currentUser) {
+            navigate('/login');
+            return;
+        }
+
+        if (!userData || (userData.powers || 0) < TOOL_COST) {
+            setError(`Insufficient Coal! You need ${TOOL_COST} 🔥 but have ${userData?.powers || 0} 🔥.`);
+            return;
+        }
+
         setIsGenerating(true);
         setError(null);
 
         try {
+            await deductPowers(auth.currentUser.uid, TOOL_COST);
+
             const apiKey = import.meta.env.VITE_GROQ_API_KEY;
             if (!apiKey || apiKey.includes("_YOUR_API_KEY_HERE")) {
                 throw new Error("Groq API Key is missing. Please check your .env file.");
@@ -35,11 +69,26 @@ const YoutubeTitleGenerator = () => {
                 },
                 body: JSON.stringify({
                     model: "llama-3.3-70b-versatile",
-                    messages: [
-                        { role: "system", content: "You are an expert YouTube strategist. Your goal is to generate extremely high CTR, click-worthy, and SEO-optimized titles. Return exactly 10 titles, one per line. Do not include numbers at the start. No explanations." },
-                        { role: "user", content: prompt }
+                messages: [
+                        { 
+                            role: "system", 
+                            content: `You are a Master YouTube Growth Strategist & Viral Title Designer. 
+                            Your expertise is in human psychology, curiosity gaps, and maximum CTR.
+                            
+                            Your rules:
+                            1. Titles must evoke emotion (Fear, Awe, Curiosity, Greed, or Joy).
+                            2. Use frameworks like "Pattern Interrupt", "Negative Constraint", or "Extreme Comparison".
+                            3. Avoid generic words like 'Ultimate', 'Guide', or 'Tips'.
+                            4. Use specific numbers (e.g., $10,432 instead of 10k).
+                            5. Return exactly 10 titles, one per line. No numbers at the start.` 
+                        },
+                        { 
+                            role: "user", 
+                            content: `Generate 10 hyper-viral, high-CTR YouTube titles for a video about: "${topic}". 
+                            Ensure titles create a massive curiosity gap that FORCES a click.` 
+                        }
                     ],
-                    temperature: 0.7
+                    temperature: 0.85
                 })
             });
 
@@ -128,7 +177,7 @@ const YoutubeTitleGenerator = () => {
                                 </>
                             ) : (
                                 <>
-                                    <FaMagic /> Generate Titles
+                                    <FaMagic /> Generate AI Titles (10 🔥)
                                 </>
                             )}
                         </button>
@@ -164,6 +213,7 @@ const YoutubeTitleGenerator = () => {
                     </motion.div>
                 )}
             </main>
+            <RelatedYoutubeTools currentToolPath="/tools/youtube-title-generator" />
             <Footer />
         </div>
     );

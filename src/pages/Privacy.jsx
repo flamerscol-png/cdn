@@ -1,16 +1,24 @@
 import React from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEOHead from '../components/SEOHead';
+import AdBanner from '../components/AdBanner';
 
 const Privacy = () => {
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
+            <SEOHead 
+                title="Privacy Policy" 
+                description="Learn how FlameCoal collects, uses, and protects your data while providing elite SEO intelligence." 
+            />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-4xl mx-auto">
                 <div className="mb-16">
                     <h1 className="text-4xl md:text-6xl font-black mb-4 tracking-tighter uppercase">Privacy <span className="text-[#ff4d00]">Policy.</span></h1>
                     <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Last Updated: October 2023</p>
                 </div>
+
+                <AdBanner size="leaderboard" className="mb-12" />
 
                 <div className="prose prose-invert max-w-none space-y-12">
                     <section>
@@ -23,7 +31,7 @@ const Privacy = () => {
                     <section>
                         <h2 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">2. Tool Usage & Logs</h2>
                         <p className="text-gray-400 leading-relaxed font-medium">
-                            When you use our Site Auditor, Position Tracker, or other tools, we may log the URLs and keywords you analyze to improve tool accuracy and prevent abuse of our API resources. This data is stored securely and is not publicly accessible.
+                            When you use our Site Auditor, or other tools, we may log the URLs and keywords you analyze to improve tool accuracy and prevent abuse of our API resources. This data is stored securely and is not publicly accessible.
                         </p>
                     </section>
 
