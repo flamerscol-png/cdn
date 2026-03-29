@@ -73,8 +73,8 @@ const YoutubeTools = () => {
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col">
             <SEOHead
-                title="YouTube SEO Tools"
-                description="Precision-engineered YouTube SEO tools to generate tags, clickbait titles, and descriptions."
+                title="YouTube SEO Intelligence"
+                description="Precision-engineered YouTube SEO tools to generate high-CTR titles, semantic descriptions, and viral-ready tags."
             />
             {/* Minimalist Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none">

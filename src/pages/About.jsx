@@ -9,8 +9,9 @@ const About = () => {
     return (
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
             <SEOHead 
-                title="About Us" 
-                description="Learn about FlameCoal, our mission, and the team building a precision-engineered platform for SEO experts." 
+                title="About FlamerCoal | Our Mission & Search Intelligence Philosophy" 
+                description="Learn about FlamerCoal, the next-gen search intelligence platform built for digital creators, SEO experts, and growth hackers."
+                keywords="about flamercoal, SEO tool mission, search intelligence platform, youtube growth experts"
             />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-5xl mx-auto">
@@ -23,7 +24,7 @@ const About = () => {
                         We build <span className="text-[#ff4d00]">Intelligence.</span>
                     </h1>
                     <p className="text-gray-500 text-xl max-w-2xl mx-auto font-medium">
-                        Flamerscoal is a precision-engineered platform for SEO experts, marketers, and business owners.
+                        FlamerCoal is a precision-engineered platform for SEO experts, marketers, and business owners.
                     </p>
                 </motion.div>
 
@@ -33,7 +34,7 @@ const About = () => {
                     <div className="space-y-6">
                         <h2 className="text-3xl font-black text-white">Our Mission</h2>
                         <p className="text-gray-400 leading-relaxed">
-                            In an era of bloated software and complex interfaces, we chose a different path. Flamerscoal was born out of the need for speed and precision. Every tool we build is designed to deliver maximum insight with minimum friction.
+                            In an era of bloated software and complex interfaces, we chose a different path. FlamerCoal was born out of the need for speed and precision. Every tool we build is designed to deliver maximum insight with minimum friction.
                         </p>
                         <p className="text-gray-400 leading-relaxed">
                             Whether you're auditing a site, tracking rankings, or generating content, we ensure your data is accurate and your workflow is seamless.

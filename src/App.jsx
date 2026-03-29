@@ -35,6 +35,7 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Support from './pages/Support';
 import AdminTickets from './pages/AdminTickets';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -86,6 +87,7 @@ function App() {
               <Route path="/support" element={<Support />} />
               <Route path="/admin/tickets" element={<AdminTickets />} />
               <Route path="/pricing" element={<Pricing />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
           

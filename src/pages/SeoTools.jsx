@@ -47,8 +47,8 @@ const SeoTools = () => {
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col">
             <SEOHead
-                title="SEO Suite"
-                description="Precision-engineered SEO tools to track rankings, generate content, and audit technical performance."
+                title="Professional SEO Suite"
+                description="Precision-engineered SEO tools to track rankings, generate content, and audit technical performance. Blaze Edition v2.0."
             />
             {/* Minimalist Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none">

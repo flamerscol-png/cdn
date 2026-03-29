@@ -10,6 +10,7 @@ import SEOHead from '../../components/SEOHead';
 import API_BASE_URL from '../../utils/api';
 import AdBanner from '../../components/AdBanner';
 import RelatedSeoTools from '../../components/RelatedSeoTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
 
 // ─────────────────────────── Helper Sub-Components ───────────────────────────
 
@@ -438,8 +439,10 @@ const SiteAuditor = () => {
     return (
         <div className="min-h-screen bg-black text-gray-200 font-sans selection:bg-purple-500/30">
             <SEOHead
-                title="Site Auditor"
-                description="Comprehensive technical SEO audit tool. Analyze performance, content, and on-page optimization."
+                title="Advanced Site Auditor & Technical SEO Scan"
+                description="Run an exhaustive 16-point технический SEO audit on any site. Check header hierarchy, meta tags, schemas, and speed instantly."
+                keywords="site auditor, SEO audit tool, technical SEO checker, website health scan, on-page SEO analyzer"
+                isTool={true}
             />
             {/* Background Mesh */}
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -448,6 +451,12 @@ const SiteAuditor = () => {
             </div>
 
             <main className="relative z-10 p-4 md:p-6 max-w-7xl mx-auto min-h-[85vh]">
+                <Breadcrumbs 
+                    items={[
+                        { name: 'SEO TOOLS', path: '/seo-tools' },
+                        { name: 'SITE AUDITOR' }
+                    ]} 
+                />
                 <AdBanner size="leaderboard" />
 
                 {/* Hero */}

@@ -10,6 +10,8 @@ import AdBanner from '../../components/AdBanner';
 import SEOHead from '../../components/SEOHead';
 import API_BASE_URL from '../../utils/api';
 import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import { callGemini } from '../../utils/ai';
 
 const ThumbnailGen = () => {
     const [topic, setTopic] = useState('');
@@ -57,12 +59,9 @@ const ThumbnailGen = () => {
         try {
             await deductPowers(auth.currentUser.uid, TOOL_COST);
 
-            const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-            if (!GROQ_API_KEY) throw new Error("Missing Groq API Key (VITE_GROQ_API_KEY)");
-
-            const prompt = `
-                Act as a YouTube Thumbnail Psychologist and Expert Designer. 
-                Provide 3 distinct 'High-CTR' Thumbnail Concepts for this video topic: "${topic}".
+            const systemMsg = "Act as a YouTube Thumbnail Psychologist and Expert Designer. Provide 3 distinct 'High-CTR' Thumbnail Concepts for the given topic. Output ONLY strict JSON.";
+            const userMsg = `
+                TOPIC: "${topic}"
                 
                 FOR EACH CONCEPT, PROVIDE:
                 1. Visual Layout: Describe exactly what should be on the screen (colors, focal point, background).
@@ -106,30 +105,8 @@ const ThumbnailGen = () => {
                 }
             `;
 
-            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${GROQ_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [
-                        { role: 'system', content: 'You are a YouTube viral design expert. Output ONLY strict JSON.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    response_format: { type: "json_object" }
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error?.message || 'Failed to generate ideas');
-            }
-
-            const data = await response.json();
-            const resultStr = data.choices[0].message.content;
-            setResult(JSON.parse(resultStr));
+            const data = await callGemini(systemMsg, userMsg, true);
+            setResult(data);
         } catch (err) {
             console.error('Error:', err);
             setError(err.message);
@@ -173,12 +150,16 @@ const ThumbnailGen = () => {
             <SEOHead
                 title="AI Thumbnail Suggester"
                 description="Get viral, high-CTR thumbnail concepts, text overlays, and color palettes designed by AI."
+                isTool={true}
             />
 
             <div className="flex-grow max-w-6xl mx-auto w-full px-6 pt-32 pb-24">
-                <Link to="/youtube-tools" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#ff0000] transition-colors mb-8 font-bold text-sm uppercase tracking-widest">
-                    &larr; Back to YT Tools
-                </Link>
+                <Breadcrumbs 
+                    items={[
+                        { name: 'YOUTUBE TOOLS', path: '/youtube-tools' },
+                        { name: 'THUMBNAIL SUGGESTER' }
+                    ]} 
+                />
 
                 <div className="mb-12">
                     <div className="inline-block px-3 py-1 rounded-lg bg-[#ff0000]/10 border border-[#ff0000]/20 text-[#ff0000] text-[10px] font-black uppercase tracking-widest mb-4">

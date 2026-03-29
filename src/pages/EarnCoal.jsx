@@ -145,7 +145,7 @@ const EarnCoal = () => {
         <div className="min-h-screen bg-[#050505] text-white pt-32 pb-20 px-4 md:px-8">
             <SEOHead 
                 title="Earn Coal" 
-                description="Refuel your coal reserve by watching sponsored content. Power up your SEO tools on FlameCoal." 
+                description="Refuel your coal reserve by watching sponsored content. Power up your SEO tools on FlamerCoal." 
             />
             <div className="max-w-6xl mx-auto">
                 {/* Header Section */}

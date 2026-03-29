@@ -69,7 +69,7 @@ const Navbar = () => {
                         <span className="text-white font-black text-xl leading-none">F</span>
                     </div>
                     <span className="text-lg font-bold tracking-tight text-white hidden sm:block">
-                        Flamers <span className="text-[#ff4d00]">Coal</span>
+                        Flamer<span className="text-[#ff4d00]">Coal</span>
                     </span>
                     {(isAppPage || location.pathname === '/dashboard') && (
                         <span className="text-[10px] uppercase tracking-widest bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-gray-400 font-bold">

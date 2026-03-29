@@ -38,8 +38,9 @@ const Home = () => {
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden">
             <SEOHead
-                title="Home"
-                description="Flamerscoal: Elite SEO intelligence tools for digital creators. Audits, keyword research, and rank tracking built for speed."
+                title="Search Intelligence & YouTube Growth Suite"
+                description="FlamerCoal: Precision-engineered SEO and YouTube growth tools for digital experts. Audits, keyword research, and viral scaling built for speed."
+                keywords="SEO tools, YouTube SEO, keyword research, site auditor, rank tracker, FlamerCoal"
             />
             {/* Minimalist Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -137,7 +138,9 @@ const Home = () => {
                                     className="modrinth-card p-10 flex flex-col items-start group relative overflow-hidden"
                                 >
                                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                                        <div className="text-8xl font-black grayscale">{feature.icon}</div>
+                                        <div className="text-8xl font-black grayscale">
+                                            <span role="img" aria-label={feature.title}>{feature.icon}</span>
+                                        </div>
                                     </div>
                                     <div className="flex justify-between items-center w-full mb-6">
                                         <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-black tracking-widest text-[#ff4d00] uppercase">
@@ -192,7 +195,7 @@ const Home = () => {
                         className="max-w-3xl mx-auto relative z-10"
                     >
                         <h2 className="text-4xl md:text-7xl font-black mb-8 tracking-tightest leading-tight">Elite SEO. <br /><span className="gradient-text">Simplified.</span></h2>
-                        <p className="text-xl text-gray-400 font-medium mb-12 leading-relaxed">Join the next generation of digital creators using Flamers Coal to scale their presence with precision.</p>
+                        <p className="text-xl text-gray-400 font-medium mb-12 leading-relaxed">Join the next generation of digital creators using FlamerCoal to scale their presence with precision.</p>
                         <Link to={user ? "/dashboard" : "/signup"} className="inline-block px-12 py-5 bg-white text-black font-black text-xl rounded-xl hover:bg-gray-200 transition-all hover:scale-[1.05] active:scale-95 shadow-2xl">
                             Create Account
                         </Link>

@@ -9,6 +9,8 @@ import SEOHead from '../../components/SEOHead';
 import { FaYoutube, FaHeading, FaCopy, FaMagic } from 'react-icons/fa';
 import AdBanner from '../../components/AdBanner';
 import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import { callGeminiText } from '../../utils/ai';
 
 const YoutubeTitleGenerator = () => {
     const [topic, setTopic] = useState('');
@@ -54,25 +56,7 @@ const YoutubeTitleGenerator = () => {
         try {
             await deductPowers(auth.currentUser.uid, TOOL_COST);
 
-            const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-            if (!apiKey || apiKey.includes("_YOUR_API_KEY_HERE")) {
-                throw new Error("Groq API Key is missing. Please check your .env file.");
-            }
-
-            const prompt = `Generate 10 viral YouTube titles for a video about: "${topic}". Use psychological triggers, emotional hooks, and strong keywords.`;
-
-            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                messages: [
-                        { 
-                            role: "system", 
-                            content: `You are a Master YouTube Growth Strategist & Viral Title Designer. 
+            const systemMsg = `You are a Master YouTube Growth Strategist & Viral Title Designer. 
                             Your expertise is in human psychology, curiosity gaps, and maximum CTR.
                             
                             Your rules:
@@ -80,31 +64,19 @@ const YoutubeTitleGenerator = () => {
                             2. Use frameworks like "Pattern Interrupt", "Negative Constraint", or "Extreme Comparison".
                             3. Avoid generic words like 'Ultimate', 'Guide', or 'Tips'.
                             4. Use specific numbers (e.g., $10,432 instead of 10k).
-                            5. Return exactly 10 titles, one per line. No numbers at the start.` 
-                        },
-                        { 
-                            role: "user", 
-                            content: `Generate 10 hyper-viral, high-CTR YouTube titles for a video about: "${topic}". 
-                            Ensure titles create a massive curiosity gap that FORCES a click.` 
-                        }
-                    ],
-                    temperature: 0.85
-                })
-            });
+                            5. Return exactly 10 titles, one per line. No numbers at the start.`;
+            
+            const userMsg = `Generate 10 hyper-viral, high-CTR YouTube titles for a video about: "${topic}". 
+                            Ensure titles create a massive curiosity gap that FORCES a click.`;
 
-            const data = await response.json();
-            if (data.error) {
-                throw new Error(data.error.message || "Failed to generate titles.");
-            }
-
-            const text = data.choices[0].message.content;
+            const text = await callGeminiText(systemMsg, userMsg);
 
             const generated = text.split('\n')
                 .map(t => t.trim())
                 .filter(t => t.length > 0)
                 .map(t => t.replace(/^\d+\.\s*/, ''));
 
-            setTitles(generated);
+            setTitles(generated.slice(0, 10));
             setCopiedIndex(null);
         } catch (err) {
             console.error("AI Title Generation Error:", err);
@@ -126,8 +98,10 @@ const YoutubeTitleGenerator = () => {
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col">
             <SEOHead
-                title="YouTube Clickbait Title Generator - Maximize CTR"
-                description="Generate high CTR and engaging YouTube titles instantly to skyrocket your click-through rates."
+                title="YouTube Click-Worthy Title Generator & Viral CTR Tool"
+                description="Skyrocket your YouTube views with viral, high-CTR titles designed by FlamerCoal's advanced AI growth engine. Beat the algorithm today."
+                keywords="youtube title generator, clickbait titles, viral youtube titles, CTR optimization, youtube growth tools"
+                isTool={true}
             />
 
             {/* Ambient Background Glow */}
@@ -137,6 +111,12 @@ const YoutubeTitleGenerator = () => {
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-5xl mx-auto w-full">
+                <Breadcrumbs 
+                    items={[
+                        { name: 'YOUTUBE TOOLS', path: '/youtube-tools' },
+                        { name: 'TITLE GENERATOR' }
+                    ]} 
+                />
                 <AdBanner size="leaderboard" />
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}

@@ -10,7 +10,7 @@ const Contact = () => {
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
             <SEOHead 
                 title="Contact Support" 
-                description="Get in touch with the FlameCoal team for support, business inquiries, or feature requests." 
+                description="Get in touch with the FlamerCoal team for support, business inquiries, or feature requests." 
             />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-4xl mx-auto">
@@ -35,7 +35,7 @@ const Contact = () => {
                             <div>
                                 <h3 className="text-xs font-black uppercase tracking-widest text-[#ff4d00] mb-2">Direct Contact</h3>
                                 <p className="text-2xl font-black text-white hover:text-[#ff4d00] transition-colors break-all">
-                                    support@flamerscoal.com
+                                    support@flamercoal.com
                                 </p>
                             </div>
                             <div>
@@ -51,7 +51,7 @@ const Contact = () => {
                             <h4 className="text-xl font-black mb-2 tracking-tight">Email Support</h4>
                             <p className="text-sm text-gray-500 font-bold mb-6">Average response time: 2-4 hours during business hours.</p>
                             <a
-                                href="mailto:support@flamerscoal.com"
+                                href="mailto:support@flamercoal.com"
                                 className="w-full bg-[#ff4d00] text-white py-4 rounded-xl font-black uppercase tracking-widest text-center hover:brightness-110 active:scale-[0.98] transition-all"
                             >
                                 Send Message
@@ -63,7 +63,7 @@ const Contact = () => {
                 <AdBanner size="leaderboard" className="mt-8" />
 
                 <div className="mt-12 text-center text-gray-600 text-[10px] font-black uppercase tracking-tighter">
-                    Flamerscoal — Precision Search Intelligence • Built for the Fast Lane
+                    FlamerCoal — Precision Search Intelligence • Built for the Fast Lane
                 </div>
             </main>
             <Footer />

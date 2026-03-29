@@ -9,6 +9,8 @@ import SEOHead from '../../components/SEOHead';
 import { FaYoutube, FaTags, FaCopy, FaCheck, FaMagic } from 'react-icons/fa';
 import AdBanner from '../../components/AdBanner';
 import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import { callGeminiText } from '../../utils/ai';
 
 const YoutubeTagGenerator = () => {
     const [keyword, setKeyword] = useState('');
@@ -54,35 +56,10 @@ const YoutubeTagGenerator = () => {
         try {
             await deductPowers(auth.currentUser.uid, TOOL_COST);
 
-            const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-            if (!apiKey || apiKey.includes("_YOUR_API_KEY_HERE")) {
-                throw new Error("Groq API Key is missing. Please check your .env file.");
-            }
+            const systemMsg = "You are an expert YouTube SEO specialist. Your goal is to generate high-traffic, relevant tags for videos. Always return exactly 15 to 20 tags separated by commas. Do not include numbers at the start. Do not include any explanations, just the tags.";
+            const userMsg = `Generate the best SEO tags for a YouTube video about: "${keyword}". Focus on high search volume and low competition keywords.`;
 
-            const prompt = `Generate the best SEO tags for a YouTube video about: "${keyword}". Focus on high search volume and low competition keywords.`;
-
-            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [
-                        { role: "system", content: "You are an expert YouTube SEO specialist. Your goal is to generate high-traffic, relevant tags for videos. Always return exactly 15 to 20 tags separated by commas. Do not include numbers at the start. Do not include any explanations, just the tags." },
-                        { role: "user", content: prompt }
-                    ],
-                    temperature: 0.7
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) {
-                throw new Error(data.error.message || "Failed to generate constraints.");
-            }
-
-            const text = data.choices[0].message.content;
+            const text = await callGeminiText(systemMsg, userMsg);
 
             // Clean and parse tags
             const generatedTags = text.split(',')
@@ -116,6 +93,7 @@ const YoutubeTagGenerator = () => {
             <SEOHead
                 title="YouTube Tag Generator - Optimize YouTube SEO"
                 description="Generate SEO-optimized YouTube tags for your videos instantly to boost views, rankings, and algorithmic growth."
+                isTool={true}
             />
 
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -123,6 +101,12 @@ const YoutubeTagGenerator = () => {
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-4xl mx-auto w-full">
+                <Breadcrumbs 
+                    items={[
+                        { name: 'YOUTUBE TOOLS', path: '/youtube-tools' },
+                        { name: 'TAG GENERATOR' }
+                    ]} 
+                />
             <AdBanner size="leaderboard" />
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}

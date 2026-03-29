@@ -49,7 +49,7 @@ const Signup = () => {
         <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-4 relative overflow-hidden">
             <SEOHead 
                 title="Sign Up" 
-                description="Create a free FlameCoal account to start using our elite SEO and YouTube digital intelligence tools." 
+                description="Create a free FlamerCoal account to start using our elite SEO and YouTube digital intelligence tools." 
             />
             {/* Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -77,7 +77,7 @@ const Signup = () => {
                         transition={{ delay: 0.3 }}
                         className="text-gray-400"
                     >
-                        Join Flamers Coal today
+                        Join FlamerCoal today
                     </motion.p>
                 </div>
 

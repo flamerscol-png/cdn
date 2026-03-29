@@ -20,7 +20,7 @@ class PaymentService {
                 body: JSON.stringify({
                     amount: tier.price.replace('$', ''),
                     currency: 'usd',
-                    description: `Flamercoal: ${tier.name} (${tier.powers})`,
+                    description: `FlamerCoal: ${tier.name} (${tier.powers})`,
                     userId: userId,
                     email: userEmail || ''
                 })

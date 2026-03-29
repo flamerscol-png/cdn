@@ -43,7 +43,7 @@ const Login = () => {
         <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-4 relative overflow-hidden">
             <SEOHead 
                 title="Log In" 
-                description="Securely log in to your FlameCoal account to access premium SEO and YouTube growth tools." 
+                description="Securely log in to your FlamerCoal account to access premium SEO and YouTube growth tools." 
             />
             {/* Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -71,7 +71,7 @@ const Login = () => {
                         transition={{ delay: 0.3 }}
                         className="text-gray-400"
                     >
-                        Log in to your Flamers Coal account
+                        Log in to your FlamerCoal account
                     </motion.p>
                 </div>
 

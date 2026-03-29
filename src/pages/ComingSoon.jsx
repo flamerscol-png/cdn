@@ -8,7 +8,7 @@ const ComingSoon = ({ title }) => {
         <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
             <SEOHead 
                 title={title || "Coming Soon"} 
-                description="New SEO and YouTube growth features are coming soon to FlameCoal." 
+                description="New SEO and YouTube growth features are coming soon to FlamerCoal." 
             />
             {/* Background Gradient Mesh */}
             <div className="fixed inset-0 z-0 opacity-20 pointer-events-none">

@@ -63,7 +63,7 @@ const GlobalSidebar = () => {
 
                 {/* Bottom Spacer wrapper for scrolling */}
                 <div className="pb-8 text-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">FlameCoal Ads</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">FlamerCoal Ads</span>
                 </div>
             </div>
         </aside>

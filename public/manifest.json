@@ -1,17 +1,42 @@
 {
-  "name": "FlameCoal | Elite SEO & YouTube Tools",
-  "short_name": "FlameCoal",
+  "name": "FlamerCoal | Elite SEO Intelligence & YouTube Tools",
+  "short_name": "FlamerCoal",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#050505",
   "theme_color": "#ff4d00",
-  "description": "Precision-engineered SEO and YouTube growth tools for digital experts and content creators.",
+  "description": "Professional SEO intelligence tools and YouTube growth scaling for digital experts.",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Keyword Research",
+      "url": "/tools/keyword-research",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Blog Writer",
+      "url": "/tools/blog-writer",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
     }
   ]
 }

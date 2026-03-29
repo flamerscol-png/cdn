@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 /**
- * PromoAd - Internal self-promotional ad banners for FlameCoal pricing.
+ * PromoAd - Internal self-promotional ad banners for FlamerCoal pricing.
  * 
  * Props:
  *   variant: "leaderboard" (728x90) | "rectangle" (300x250) | "banner" (468x60) | "strip"

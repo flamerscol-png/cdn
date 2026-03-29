@@ -5,5 +5,8 @@ Allow: /
 Disallow: /admin/
 Disallow: /admin/tickets
 
+# Block redundant search/filter parameters
+Disallow: /*?*
+
 # Sitemap location
 Sitemap: https://flamercoal.web.app/sitemap.xml

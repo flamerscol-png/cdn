@@ -9,6 +9,7 @@ import SEOHead from '../../components/SEOHead';
 import { FaYoutube, FaDownload, FaLink } from 'react-icons/fa';
 import AdBanner from '../../components/AdBanner';
 import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
 
 const YoutubeThumbnailDownloader = () => {
     const [url, setUrl] = useState('');
@@ -98,6 +99,7 @@ const YoutubeThumbnailDownloader = () => {
             <SEOHead
                 title="YouTube Thumbnail Downloader - Free SEO Tools"
                 description="Download high-quality thumbnails from any YouTube video instantly. Get HD, MaxRes, and Standard quality images."
+                isTool={true}
             />
             {/* Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -105,6 +107,12 @@ const YoutubeThumbnailDownloader = () => {
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-4xl mx-auto w-full">
+                <Breadcrumbs 
+                    items={[
+                        { name: 'YOUTUBE TOOLS', path: '/youtube-tools' },
+                        { name: 'THUMBNAIL DOWNLOADER' }
+                    ]} 
+                />
             <AdBanner size="leaderboard" />
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}

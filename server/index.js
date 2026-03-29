@@ -569,14 +569,14 @@ app.get('/api/backlinks', async (req, res) => {
 // ==================== VIEWSTATS SCRAPER ENDPOINT (Real Browser - Cloudflare Bypass) ====================
 // ==================== YOUTUBE STRATEGY ENGINE ====================
 const YOUTUBE_API_KEY = (process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_DATA_API_KEY || process.env.YOUTUBE_DATA_API_KEY || "").trim();
-const GROQ_API_KEY = (process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || "").trim();
+const CEREBRAS_API_KEY = (process.env.CEREBRAS_API_KEY || process.env.VITE_CEREBRAS_API_KEY || "").trim();
 
 console.log("🛠️  Backend API Key Check:");
 console.log(`  - YouTube Key: ${YOUTUBE_API_KEY ? "Present (Starts with: " + YOUTUBE_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
-console.log(`  - Groq Key: ${GROQ_API_KEY ? "Present (Starts with: " + GROQ_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
+console.log(`  - Cerebras Key: ${CEREBRAS_API_KEY ? "Present (Starts with: " + CEREBRAS_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
 
 if (!YOUTUBE_API_KEY) console.error("⚠️ WARNING: Missing YouTube API Key in server environment!");
-if (!GROQ_API_KEY) console.error("⚠️ WARNING: Missing Groq API Key in server environment!");
+if (!CEREBRAS_API_KEY) console.error("⚠️ WARNING: Missing Cerebras API Key in server environment!");
 // --- KEEP ALIVE ENDPOINT ---
 // Used to prevent Render free tier from sleeping
 app.get('/api/keep-alive', (req, res) => {
@@ -893,7 +893,7 @@ app.post('/api/youtube/strategy', async (req, res) => {
             };
         }
 
-        // 4. Generate Strategy with AI (Groq)
+        // 4. Generate Strategy with AI (Cerebras)
         const prompt = `
             Act as a world-class YouTube Growth & Viral Engineer (like MrBeast's strategist). 
             Analyze the target channel and provide a detailed growth strategy in JSON format.
@@ -932,20 +932,22 @@ app.post('/api/youtube/strategy', async (req, res) => {
             }
         `;
 
-        if (!GROQ_API_KEY) throw new Error("Missing GROQ_API_KEY");
+        if (!CEREBRAS_API_KEY) throw new Error("Missing CEREBRAS_API_KEY");
 
-        const groqResponse = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: 'llama-3.3-70b-versatile',
+        const cerebrasResponse = await axios.post('https://api.cerebras.ai/v1/chat/completions', {
+            model: 'llama3.1-70b',
             messages: [
                 { role: 'system', content: 'You are a YouTube viral strategist. Output ONLY strict JSON.' },
                 { role: 'user', content: prompt }
             ],
-            response_format: { type: "json_object" }
+            response_format: { type: "json_object" },
+            temperature: 0.7,
+            max_completion_tokens: 8192
         }, {
-            headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
+            headers: { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' }
         });
 
-        const strategyRes = groqResponse.data.choices[0].message.content;
+        const strategyRes = cerebrasResponse.data.choices[0].message.content;
         const parsedStrategy = JSON.parse(strategyRes);
 
         res.json({
@@ -968,15 +970,15 @@ app.post('/api/youtube/strategy', async (req, res) => {
             _debug: {
                 ytKeySet: !!YOUTUBE_API_KEY,
                 ytKeyStart: YOUTUBE_API_KEY ? YOUTUBE_API_KEY.substring(0, 5) : "NONE",
-                groqKeySet: !!GROQ_API_KEY,
-                groqKeyStart: GROQ_API_KEY ? GROQ_API_KEY.substring(0, 5) : "NONE"
+                cerebrasKeySet: !!CEREBRAS_API_KEY,
+                cerebrasKeyStart: CEREBRAS_API_KEY ? CEREBRAS_API_KEY.substring(0, 5) : "NONE"
             }
         });
     }
 });
 
 // Note: AI Blog Writer and Thumbnail Ideas have been moved to the frontend 
-// for direct Groq API integration to improve speed and reduce server load.
+// for direct Cerebras API integration to improve speed and reduce server load.
 
 
 // ==================== NOWPAYMENTS INTEGRATION ====================

@@ -80,9 +80,9 @@ const Pricing = () => {
     };
 
     const UPI_LINKS = {
-        "Starter Hub": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=250&cu=INR&tn=Starter+Hub+5000+Coal",
-        "Pro Pack": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=832&cu=INR&tn=Pro+Pack+10000+Coal",
-        "Elite Bulk": "upi://pay?pa=9315718114@fam&pn=Flamercoal&am=2085&cu=INR&tn=Elite+Bulk+15000+Coal"
+        "Starter Hub": "upi://pay?pa=9315718114@fam&pn=FlamerCoal&am=250&cu=INR&tn=Starter+Hub+5000+Coal",
+        "Pro Pack": "upi://pay?pa=9315718114@fam&pn=FlamerCoal&am=832&cu=INR&tn=Pro+Pack+10000+Coal",
+        "Elite Bulk": "upi://pay?pa=9315718114@fam&pn=FlamerCoal&am=2085&cu=INR&tn=Elite+Bulk+15000+Coal"
     };
 
     const UPI_PRICES = {
@@ -92,9 +92,9 @@ const Pricing = () => {
     };
 
     const PAYPAL_LINKS = {
-        "Starter Hub": "https://www.paypal.com/paypalme/flamerscoal/3",
-        "Pro Pack": "https://www.paypal.com/paypalme/flamerscoal/10",
-        "Elite Bulk": "https://www.paypal.com/paypalme/flamerscoal/25"
+        "Starter Hub": "https://www.paypal.com/paypalme/FlamerCoal/3",
+        "Pro Pack": "https://www.paypal.com/paypalme/FlamerCoal/10",
+        "Elite Bulk": "https://www.paypal.com/paypalme/FlamerCoal/25"
     };
 
     const requireLogin = () => {
@@ -116,8 +116,9 @@ const Pricing = () => {
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden selection:bg-[#ff4d00]/30">
             <SEOHead 
-                title="Pricing Plans" 
-                description="Flexible pricing for FlameCoal. Buy Coal once, use forever. No subscriptions, no hidden fees." 
+                title="Pricing & Membership Plans | Scale Your Search Intelligence" 
+                description="Choose the perfect plan to fuel your digital growth. From free starters to enterprise-grade SEO and YouTube power tools."
+                keywords="FlamerCoal pricing, SEO tool pricing, youtube tool subscription, buy coal credits"
             />
             <Navbar />
 

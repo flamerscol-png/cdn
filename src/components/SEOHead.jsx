@@ -1,81 +1,108 @@
-import { useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useLocation } from 'react-router-dom';
 
-const SEOHead = ({ title, description, schemaType = "WebSite", customSchema }) => {
+const SEOHead = ({ title, description, keywords, schemaType, customSchema, ogImage, ogType = "website", isTool = false }) => {
     const location = useLocation();
     const baseUrl = "https://flamercoal.web.app";
     const currentUrl = `${baseUrl}${location.pathname}`;
 
-    const defaultTitle = "FlameCoal | Elite SEO & YouTube Tools";
-    const finalTitle = title ? `${title} | FlameCoal` : defaultTitle;
+    const defaultTitle = "FlamerCoal | Elite SEO Intelligence & YouTube Growth Tools";
+    const finalTitle = title ? `${title} | FlamerCoal` : defaultTitle;
     const finalDescription = description || "Precision-engineered SEO tools and digital intelligence for experts. Boost your rankings, optimize videos, and scale your online presence.";
+    const finalImage = ogImage || `${baseUrl}/og-default.png`;
+    const finalKeywords = keywords || "SEO tools, YouTube tools, keyword research, site auditor, FlamerCoal";
 
-    useEffect(() => {
-        // Update Title
-        document.title = finalTitle;
-
-        // Helper function for meta tags
-        const updateMeta = (name, content, attribute = "name") => {
-            if (!content) return;
-            let meta = document.querySelector(`meta[${attribute}="${name}"]`);
-            if (!meta) {
-                meta = document.createElement('meta');
-                meta.setAttribute(attribute, name);
-                document.head.appendChild(meta);
-            }
-            meta.content = content;
-        };
-
-        // Standard Meta
-        updateMeta('description', finalDescription);
-
-        // Open Graph (OG)
-        updateMeta('og:title', finalTitle, 'property');
-        updateMeta('og:description', finalDescription, 'property');
-        updateMeta('og:url', currentUrl, 'property');
-        updateMeta('og:type', 'website', 'property');
-
-        // Twitter Cards
-        updateMeta('twitter:title', finalTitle);
-        updateMeta('twitter:description', finalDescription);
-
-        // --- Remove Canonical Link ---
-        const existingCanonical = document.querySelector('link[rel="canonical"]');
-        if (existingCanonical) {
-            existingCanonical.remove();
+    // Organization base to be used in all schemas
+    const organizationSchema = {
+        "@type": "Organization",
+        "@id": `${baseUrl}/#organization`,
+        "name": "FlamerCoal",
+        "url": baseUrl,
+        "logo": {
+            "@type": "ImageObject",
+            "url": `${baseUrl}/favicon.svg`
         }
+    };
 
-        // --- Inject JSON-LD Schema.org Structured Data ---
-        let scriptSchema = document.querySelector('script[id="schema-org"]');
-        if (!scriptSchema) {
-            scriptSchema = document.createElement('script');
-            scriptSchema.type = 'application/ld+json';
-            scriptSchema.id = 'schema-org';
-            document.head.appendChild(scriptSchema);
+    // Tool Schema (SoftwareApplication)
+    const toolSchema = isTool ? {
+        "@type": "SoftwareApplication",
+        "name": title || "FlamerCoal Tool",
+        "applicationCategory": "SEOApplication",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0.00",
+            "priceCurrency": "USD"
+        },
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "ratingCount": "1240"
         }
+    } : null;
 
-        // Use custom schema if provided, else use default with dynamic type
-        const finalSchemaData = customSchema ? customSchema : {
+    const finalSchemaData = customSchema ? (
+        customSchema["@context"] ? customSchema : {
             "@context": "https://schema.org",
-            "@type": schemaType,
-            "name": title || "FlameCoal",
-            "url": currentUrl,
-            "description": finalDescription,
-            "publisher": {
-                "@type": "Organization",
-                "name": "FlameCoal",
-                "logo": {
-                    "@type": "ImageObject",
-                    "url": `${baseUrl}/favicon.svg`
-                }
+            "@graph": [
+                organizationSchema,
+                customSchema
+            ]
+        }
+    ) : {
+        "@context": "https://schema.org",
+        "@graph": [
+            organizationSchema,
+            toolSchema,
+            {
+                "@type": schemaType || (isTool ? "SoftwareApplication" : "WebPage"),
+                "name": title || "FlamerCoal",
+                "url": currentUrl,
+                "description": finalDescription,
+                "publisher": { "@id": `${baseUrl}/#organization` }
             }
-        };
+        ].filter(Boolean)
+    };
 
-        scriptSchema.textContent = JSON.stringify(finalSchemaData);
+    return (
+        <Helmet>
+            {/* Title & Description */}
+            <title>{finalTitle}</title>
+            <meta name="description" content={finalDescription} />
+            <meta name="keywords" content={finalKeywords} />
+            <meta name="author" content="FlamerCoal" />
+            <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 
-    }, [finalTitle, finalDescription, currentUrl]);
+            {/* Open Graph / Facebook */}
+            <meta property="og:title" content={finalTitle} />
+            <meta property="og:description" content={finalDescription} />
+            <meta property="og:url" content={currentUrl} />
+            <meta property="og:type" content={ogType} />
+            <meta property="og:image" content={finalImage} />
+            <meta property="og:image:width" content="1280" />
+            <meta property="og:image:height" content="720" />
+            <meta property="og:site_name" content="FlamerCoal" />
 
-    return null;
+            {/* Twitter */}
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content={finalTitle} />
+            <meta name="twitter:description" content={finalDescription} />
+            <meta name="twitter:image" content={finalImage} />
+
+            {/* Performance Hints */}
+            <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+            <link rel="preconnect" href="https://fonts.googleapis.com" crossOrigin="anonymous" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href="https://api.cerebras.ai" />
+            <link rel="dns-prefetch" href="https://api.codetabs.com" />
+
+            {/* Structured Data (JSON-LD) */}
+            <script type="application/ld+json">
+                {JSON.stringify(finalSchemaData)}
+            </script>
+        </Helmet>
+    );
 };
 
 export default SEOHead;

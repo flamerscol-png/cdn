@@ -11,6 +11,8 @@ import { deductPowers } from '../../utils/db';
 import API_BASE_URL from '../../utils/api';
 import AdBanner from '../../components/AdBanner';
 import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import { callGemini, callGeminiText } from '../../utils/ai';
 
 const formatCompactNumber = (number) => {
     if (number === null || number === undefined) return "0";
@@ -81,32 +83,7 @@ const fetchViewStatsDirect = async (handle) => {
     }
 };
 
-// --- GROQ HELPER ---
-const callGroq = async (systemMsg, userMsg) => {
-    const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-    if (!GROQ_API_KEY) throw new Error("Missing VITE_GROQ_API_KEY");
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }], response_format: { type: "json_object" }, temperature: 0.7 })
-    });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || 'Groq API Error'); }
-    const data = await res.json();
-    return JSON.parse(data.choices[0].message.content);
-};
-
-const callGroqText = async (systemMsg, userMsg) => {
-    const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-    if (!GROQ_API_KEY) throw new Error("Missing VITE_GROQ_API_KEY");
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }], temperature: 0.7 })
-    });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || 'Groq API Error'); }
-    const data = await res.json();
-    return data.choices[0].message.content;
-};
+// Replaced local Groq helpers with centralized Gemini service
 
 // --- NICHE SCORE GAUGE ---
 const NicheScoreGauge = ({ score }) => {
@@ -298,9 +275,8 @@ ${strategy.executionPlan?.map(p => `• ${p}`).join('\n') || 'None'}
         if (seoLoading[idx]) return;
         setSeoLoading(p => ({ ...p, [idx]: true }));
         try {
-            const result = await callGroq(
-                'You are a Master YouTube Strategist (MrBeast level). Output ONLY valid JSON.',
-                `Generate 3 high-intensity, viral YouTube title variations and 5 trending tags for this concept.
+            const systemMsg = 'You are a Master YouTube Strategist (MrBeast level). Output ONLY valid JSON.';
+            const userMsg = `Generate 3 high-intensity, viral YouTube title variations and 5 trending tags for this concept.
                 
                 Use these frameworks:
                 1. THE CURIOSITY GAP (e.g., "I spent $10k on...")
@@ -310,8 +286,9 @@ ${strategy.executionPlan?.map(p => `• ${p}`).join('\n') || 'None'}
                 Concept: "${idea.title}"
                 Context: ${idea.concept}
                 
-                Output JSON: { "titles": ["title1","title2","title3"], "tags": ["tag1","tag2","tag3","tag4","tag5"] }`
-            );
+                Output JSON: { "titles": ["title1","title2","title3"], "tags": ["tag1","tag2","tag3","tag4","tag5"] }`;
+            
+            const result = await callGemini(systemMsg, userMsg, true);
             setSeoData(p => ({ ...p, [idx]: result }));
             setSeoExpanded(p => ({ ...p, [idx]: true }));
         } catch (e) { console.error(e); }
@@ -324,10 +301,10 @@ ${strategy.executionPlan?.map(p => `• ${p}`).join('\n') || 'None'}
         setScriptLoading(true);
         setScriptContent('');
         try {
-            const result = await callGroqText(
-                'You are a top YouTube scriptwriter. Write engaging, conversational scripts with hooks, transitions, and CTAs.',
-                `Write a full YouTube video script outline for:\nTitle: "${idea.title}"\nConcept: ${idea.concept}\n\nInclude:\n1. HOOK (first 10 seconds — attention-grabbing)\n2. INTRO (set up the premise, 30 seconds)\n3. MAIN CONTENT (3-5 key segments with transitions)\n4. CLIMAX (the big reveal/payoff)\n5. CTA (subscribe, like, comment prompt)\n\nMake it conversational and engaging. Use timestamps.`
-            );
+            const systemMsg = 'You are a top YouTube scriptwriter. Write engaging, conversational scripts with hooks, transitions, and CTAs.';
+            const userMsg = `Write a full YouTube video script outline for:\nTitle: "${idea.title}"\nConcept: ${idea.concept}\n\nInclude:\n1. HOOK (first 10 seconds — attention-grabbing)\n2. INTRO (set up the premise, 30 seconds)\n3. MAIN CONTENT (3-5 key segments with transitions)\n4. CLIMAX (the big reveal/payoff)\n5. CTA (subscribe, like, comment prompt)\n\nMake it conversational and engaging. Use timestamps.`;
+            
+            const result = await callGeminiText(systemMsg, userMsg);
             setScriptContent(result);
             if (auth.currentUser) await deductPowers(auth.currentUser.uid, FOLLOWUP_COST);
         } catch (e) { setScriptContent('Failed to generate script: ' + e.message); }
@@ -345,10 +322,10 @@ ${strategy.executionPlan?.map(p => `• ${p}`).join('\n') || 'None'}
         setChatLoading(true);
         try {
             const context = `Previous strategy for @${handle}: ${JSON.stringify(strategy).slice(0, 2000)}`;
-            const result = await callGroqText(
-                'You are a YouTube growth expert. Answer follow-up questions about the strategy. Be specific and actionable.',
-                `Context: ${context}\n\nUser question: ${userMsg}`
-            );
+            const systemMsg = 'You are a YouTube growth expert. Answer follow-up questions about the strategy. Be specific and actionable.';
+            const userMsg = `Context: ${context}\n\nUser question: ${userMsg}`;
+            
+            const result = await callGeminiText(systemMsg, userMsg);
             setChatMessages(p => [...p, { role: 'assistant', content: result }]);
             if (auth.currentUser) await deductPowers(auth.currentUser.uid, FOLLOWUP_COST);
         } catch (e) { setChatMessages(p => [...p, { role: 'system', content: 'Error: ' + e.message }]); }
@@ -376,7 +353,9 @@ ${strategy.executionPlan?.map(p => `• ${p}`).join('\n') || 'None'}
                 hooks: `Generate 3 NEW high-retention viral hooks for (@${handle}). Use the "Pattern Interrupt" or "False Reality" framework (e.g., "Stop doing X right now" or "Everything you know about X is a lie"). Output JSON: { "viralHooks": ["hook1", "hook2", "hook3"] }`,
                 gaps: `Generate 3 NEW high-volume content gaps for (@${handle}). Focus on untapped, low-competition but high-demand "Search-to-Viral" topics. Output JSON: { "contentGaps": ["gap1", "gap2", "gap3"] }`
             };
-            const result = await callGroq('You are a YouTube viral strategist. Output ONLY valid JSON.', sectionPrompts[section]);
+            const systemMsg = 'You are a YouTube viral strategist. Output ONLY valid JSON.';
+            const userMsg = sectionPrompts[section];
+            const result = await callGemini(systemMsg, userMsg, true);
             setStrategy(prev => {
                 const updated = { ...prev };
                 if (section === 'titles') updated.contentStrategy = { ...updated.contentStrategy, remixedIdeas: result.remixedIdeas };
@@ -451,10 +430,9 @@ Output ONLY this JSON structure (don't miss performanceVerdict or velocityPoints
   "executionPlan": ["Month 1: ...", "Month 2: ...", "Month 3: ..."]
 }`;
 
-            const parsedStrategy = await callGroq(
-                'You are an expert YouTube strategist. Your analysis must be specific and actionable. Output ONLY valid JSON.',
-                prompt
-            );
+            const systemMsg = 'You are an expert YouTube strategist. Your analysis must be specific and actionable. Output ONLY valid JSON.';
+            const userMsg = prompt;
+            const parsedStrategy = await callGemini(systemMsg, userMsg, true);
 
             // --- DATA NORMALIZATION & FALLBACKS ---
             if (!parsedStrategy.monthlyPerformance) {
@@ -506,13 +484,19 @@ Output ONLY this JSON structure (don't miss performanceVerdict or velocityPoints
     // --- RENDER ---
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col">
-            <SEOHead title="YouTube Strategy Builder" description="AI-powered YouTube growth strategy with niche analysis, viral concepts, and content calendar" />
+            <SEOHead title="YouTube Strategy Builder" description="AI-powered YouTube growth strategy with niche analysis, viral concepts, and content calendar" isTool={true} />
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute top-[10%] right-[10%] w-[50%] h-[50%] bg-[#ff0000]/5 rounded-full blur-[150px]" />
                 <div className="absolute bottom-[20%] left-[5%] w-[40%] h-[40%] bg-[#ff0000]/3 rounded-full blur-[120px]" />
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-7xl mx-auto w-full">
+                <Breadcrumbs 
+                    items={[
+                        { name: 'YOUTUBE TOOLS', path: '/youtube-tools' },
+                        { name: 'STRATEGY BUILDER' }
+                    ]} 
+                />
 
                 <AdBanner size="leaderboard" />
                 <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-12 text-center">

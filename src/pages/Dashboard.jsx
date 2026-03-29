@@ -90,7 +90,7 @@ const Dashboard = () => {
         <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden selection:bg-[#ff4d00]/30">
             <SEOHead 
                 title="Dashboard" 
-                description="Manage your FlameCoal account, track your coal balance, and access intelligent SEO tools." 
+                description="Manage your FlamerCoal account, track your coal balance, and access intelligent SEO tools." 
             />
             {/* Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none">

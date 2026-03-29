@@ -9,15 +9,25 @@
   --bg-surface-hover: #1a1a1a;
   --border-subtle: rgba(255, 77, 0, 0.1);
   --text-muted: #888888;
+  
+  /* Epic Fonts */
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
 /* ===== Global Styles ===== */
 body {
   background-color: var(--bg-darker);
-  color: #ffffff;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #eeeeee;
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
 }
 
 /* Smooth Scroll */
@@ -29,6 +39,64 @@ html {
 ::selection {
   background-color: rgba(255, 77, 0, 0.25);
   color: #fff;
+}
+
+/* ===== Typography (Prose) Fixes ===== */
+.prose {
+    max-width: none !important;
+    --tw-prose-body: #d1d5db;
+    --tw-prose-headings: #ffffff;
+    --tw-prose-lead: #9ca3af;
+    --tw-prose-links: #ff4d00;
+    --tw-prose-bold: #ffffff;
+    --tw-prose-counters: #6b7280;
+    --tw-prose-bullets: #ff4d00;
+    --tw-prose-hr: #374151;
+    --tw-prose-quotes: #f3f4f6;
+    --tw-prose-quote-borders: #ff4d00;
+    --tw-prose-captions: #9ca3af;
+    --tw-prose-code: #ff4d00;
+    --tw-prose-pre-code: #e5e7eb;
+    --tw-prose-pre-bg: #1f2937;
+    --tw-prose-th-borders: #4b5563;
+    --tw-prose-td-borders: #374151;
+}
+
+.prose p {
+    margin-bottom: 2rem !important;
+    line-height: 1.8 !important;
+}
+
+.prose h2 {
+    font-family: var(--font-heading);
+    font-weight: 800 !important;
+    letter-spacing: -0.025em;
+    margin-top: 3.5rem !important;
+    margin-bottom: 1.5rem !important;
+    color: #ffffff !important;
+}
+
+.prose h3 {
+    font-family: var(--font-heading);
+    font-weight: 700 !important;
+    margin-top: 2.5rem !important;
+    margin-bottom: 1rem !important;
+}
+
+.prose ul {
+    list-style-type: disc !important;
+    padding-left: 1.5rem !important;
+    margin-bottom: 2rem !important;
+}
+
+.prose li {
+    margin-bottom: 0.75rem !important;
+    padding-left: 0.5rem !important;
+}
+
+.prose strong {
+    font-weight: 700 !important;
+    color: #ffffff !important;
 }
 
 /* ===== Custom Scrollbar ===== */

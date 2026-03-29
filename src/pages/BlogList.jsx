@@ -18,7 +18,7 @@ const BlogList = () => {
     return (
         <div className="min-h-screen bg-black text-gray-200 font-sans selection:bg-[#ff4d00]/30">
             <SEOHead
-                title="FlameCoal Blog | SEO & YouTube Intelligence"
+                title="FlamerCoal Blog | SEO & YouTube Intelligence"
                 description="Deep-dive strategies, tool tutorials, and growth hacks for mastering SEO and YouTube algorithms."
             />
             

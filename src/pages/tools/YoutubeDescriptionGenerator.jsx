@@ -9,6 +9,8 @@ import SEOHead from '../../components/SEOHead';
 import { FaYoutube, FaFileAlt, FaCopy, FaCheck, FaLink, FaAlignLeft } from 'react-icons/fa';
 import AdBanner from '../../components/AdBanner';
 import RelatedYoutubeTools from '../../components/RelatedYoutubeTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import { callGeminiText } from '../../utils/ai';
 
 const YoutubeDescriptionGenerator = () => {
     const [title, setTitle] = useState('');
@@ -56,12 +58,8 @@ const YoutubeDescriptionGenerator = () => {
         try {
             await deductPowers(auth.currentUser.uid, TOOL_COST);
 
-            const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-            if (!apiKey || apiKey.includes("_YOUR_API_KEY_HERE")) {
-                throw new Error("Groq API Key is missing. Please check your .env file.");
-            }
-
-            const prompt = `Write a YouTube video description for:
+            const systemMsg = "You are an expert YouTube content strategist. Your goal is to write highly optimized video descriptions that include a hook, a detailed summary based on user context, formatted links, and relevant SEO hashtags. Use emojis to make it professional and engaging.";
+            const userMsg = `Write a YouTube video description for:
             TITLE: "${title}"
             ABOUT: "${about}"
             LINKS to include: ${links || "None provided"}
@@ -75,28 +73,7 @@ const YoutubeDescriptionGenerator = () => {
 
             Do not include any other meta-text or explanations.`;
 
-            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [
-                        { role: "system", content: "You are an expert YouTube content strategist. Your goal is to write highly optimized video descriptions that include a hook, a detailed summary based on user context, formatted links, and relevant SEO hashtags. Use emojis to make it professional and engaging." },
-                        { role: "user", content: prompt }
-                    ],
-                    temperature: 0.7
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) {
-                throw new Error(data.error.message || "Failed to generate description.");
-            }
-
-            const text = data.choices[0].message.content;
+            const text = await callGeminiText(systemMsg, userMsg);
 
             setDescription(text.trim());
             setCopied(false);
@@ -123,6 +100,7 @@ const YoutubeDescriptionGenerator = () => {
             <SEOHead
                 title="YouTube Description Generator - Optimize SEO metadata"
                 description="Generate highly optimizing YouTube descriptions with timestamps, links, and SEO tags to rank higher instantly."
+                isTool={true}
             />
 
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -131,6 +109,12 @@ const YoutubeDescriptionGenerator = () => {
             </div>
 
             <main className="flex-grow relative z-10 px-6 pt-32 pb-24 max-w-6xl mx-auto w-full">
+                <Breadcrumbs 
+                    items={[
+                        { name: 'YOUTUBE TOOLS', path: '/youtube-tools' },
+                        { name: 'DESCRIPTION GENERATOR' }
+                    ]} 
+                />
                 <AdBanner size="leaderboard" />
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -184,7 +168,7 @@ const YoutubeDescriptionGenerator = () => {
                                     rows="3"
                                     value={links}
                                     onChange={(e) => setLinks(e.target.value)}
-                                    placeholder="https://instagram.com/yourname&#10;https://yourwebsite.com"
+                                    placeholder="https://youtube.com/@flamercoal&#10;https://flamercoal.web.app"
                                     className="w-full bg-transparent text-white outline-none font-medium placeholder-gray-700 resize-none font-mono text-sm leading-relaxed"
                                 />
                             </div>

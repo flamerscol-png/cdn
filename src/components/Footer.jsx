@@ -1,5 +1,5 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
+import { FaYoutube } from 'react-icons/fa';
 
 const Footer = () => {
     return (
@@ -15,7 +15,7 @@ const Footer = () => {
                                 <span className="text-white font-black text-xl leading-none">F</span>
                             </div>
                             <span className="text-lg font-bold tracking-tight text-white group-hover:text-[#ff4d00] transition-colors">
-                                Flamers <span className="text-[#ff4d00]">Coal</span>
+                                Flamer<span className="text-[#ff4d00]">Coal</span>
                             </span>
                         </Link>
                         <p className="text-sm font-medium leading-relaxed max-w-xs">
@@ -48,13 +48,18 @@ const Footer = () => {
                         <ul className="space-y-4 text-sm font-bold">
                             <li><Link to="/support" className="hover:text-white transition-colors">Support Desk</Link></li>
                             <li><Link to="/earn-coal" className="hover:text-[#ff4d00] transition-colors">Earn Free Coal 🔥</Link></li>
+                            <li>
+                                <a href="https://youtube.com/@FlamerCoal" target="_blank" rel="noopener noreferrer" className="hover:text-[#ff0000] transition-colors flex items-center gap-2">
+                                    <FaYoutube className="text-[#ff0000]" /> YouTube Channel
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </div>
 
                 <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="text-[10px] font-black uppercase tracking-widest opacity-30">
-                        &copy; {new Date().getFullYear()} Flamers Coal. All systems operational.
+                        &copy; {new Date().getFullYear()} FlamerCoal. All systems operational.
                     </div>
                     <div className="flex gap-8 text-[10px] font-black uppercase tracking-widest">
                         <Link to="/privacy" className="hover:text-[#ff4d00] transition-colors">Privacy</Link>

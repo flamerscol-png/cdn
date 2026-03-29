@@ -61,7 +61,7 @@ const Support = () => {
         <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-[#ff4d00]/30">
             <SEOHead 
                 title="Support Center"
-                description="Report missing coal or payment issues to the Flamers Coal support team."
+                description="Report missing coal or payment issues to the FlamerCoal support team."
             />
             <Navbar />
             
@@ -181,7 +181,7 @@ const Support = () => {
 
                 <div className="mt-12 text-center">
                     <p className="text-gray-600 text-xs font-black uppercase tracking-widest">
-                        Flamers Coal Support System v1.1 • Response time: &lt;24h
+                        FlamerCoal Support System v1.1 • Response time: &lt;24h
                     </p>
                 </div>
             </main>

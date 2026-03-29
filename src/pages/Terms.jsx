@@ -9,7 +9,7 @@ const Terms = () => {
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
             <SEOHead 
                 title="Terms of Service" 
-                description="Read the terms of service and usage guidelines for FlameCoal's SEO and YouTube tools." 
+                description="Read the terms of service and usage guidelines for FlamerCoal's SEO and YouTube tools." 
             />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-4xl mx-auto">
@@ -24,7 +24,7 @@ const Terms = () => {
                     <section>
                         <h2 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">1. Acceptance of Terms</h2>
                         <p className="text-gray-400 leading-relaxed font-medium">
-                            By accessing or using Flamerscoal, you agree to be bound by these Terms of Service. If you do not agree to all of these terms, you may not access or use the application.
+                            By accessing or using FlamerCoal, you agree to be bound by these Terms of Service. If you do not agree to all of these terms, you may not access or use the application.
                         </p>
                     </section>
 
@@ -52,7 +52,7 @@ const Terms = () => {
                     <section>
                         <h2 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">5. Limitation of Liability</h2>
                         <p className="text-gray-400 leading-relaxed font-medium">
-                            Flamerscoal is provided "as is" without warranties of any kind. We are not liable for any direct or indirect damages resulting from the use of our optimization tools or the data generated.
+                            FlamerCoal is provided "as is" without warranties of any kind. We are not liable for any direct or indirect damages resulting from the use of our optimization tools or the data generated.
                         </p>
                     </section>
                 </div>

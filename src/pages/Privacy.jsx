@@ -9,7 +9,7 @@ const Privacy = () => {
         <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ff4d00]/30">
             <SEOHead 
                 title="Privacy Policy" 
-                description="Learn how FlameCoal collects, uses, and protects your data while providing elite SEO intelligence." 
+                description="Learn how FlamerCoal collects, uses, and protects your data while providing elite SEO intelligence." 
             />
             <Navbar />
             <main className="pt-32 pb-24 px-6 md:px-12 max-w-4xl mx-auto">
@@ -24,7 +24,7 @@ const Privacy = () => {
                     <section>
                         <h2 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">1. Data Collection</h2>
                         <p className="text-gray-400 leading-relaxed font-medium">
-                            Flamerscoal collects minimal personal information required to provide our SEO and digital intelligence services. This includes your email address for account management and payment status tracking. We do not sell or share your personal data with third parties for marketing purposes.
+                            FlamerCoal collects minimal personal information required to provide our SEO and digital intelligence services. This includes your email address for account management and payment status tracking. We do not sell or share your personal data with third parties for marketing purposes.
                         </p>
                     </section>
 

@@ -9,7 +9,9 @@ import Footer from '../../components/Footer';
 import AdBanner from '../../components/AdBanner';
 import SEOHead from '../../components/SEOHead';
 import RelatedSeoTools from '../../components/RelatedSeoTools';
+import Breadcrumbs from '../../components/Breadcrumbs';
 import API_BASE_URL from '../../utils/api';
+import { callGemini } from '../../utils/ai';
 
 const BlogWriter = () => {
     const [topic, setTopic] = useState('');
@@ -78,12 +80,8 @@ const BlogWriter = () => {
         try {
             await deductPowers(auth.currentUser.uid, TOOL_COST);
 
-            const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-            if (!GROQ_API_KEY) throw new Error("Missing Groq API Key (VITE_GROQ_API_KEY)");
-
-            const prompt = `
-                Act as a Top-1% SEO Specialist and Subject Matter Expert. Write a 'Power Page' that is designed to outrank the current TOP-3 Google results for the given topic.
-                
+            const systemMsg = "Act as a Top-1% SEO Specialist and Subject Matter Expert. Write a 'Power Page' that is designed to outrank the current TOP-3 Google results for the given topic. Output ONLY strict JSON.";
+            const userMsg = `
                 TOPIC: ${topic}
                 KEYWORDS: ${keywords || 'SEO basics, quality content'}
                 TONE: ${tone || 'Professional'}
@@ -105,30 +103,8 @@ const BlogWriter = () => {
                 }
             `;
 
-            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${GROQ_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [
-                        { role: 'system', content: 'You are a professional SEO writer. Output ONLY strict JSON.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    response_format: { type: "json_object" }
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error?.message || 'Failed to generate content');
-            }
-
-            const data = await response.json();
-            const resultStr = data.choices[0].message.content;
-            setResult(JSON.parse(resultStr));
+            const data = await callGemini(systemMsg, userMsg, true);
+            setResult(data);
         } catch (error) {
             console.error('Error:', error);
             setResult({
@@ -157,14 +133,19 @@ const BlogWriter = () => {
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-[#ff4d00]/30 flex flex-col">
             <SEOHead
-                title="AI Blog Writer"
-                description="Generate professional-grade, SEO-optimized blog content instantly using advanced AI models."
+                title="AI SEO Blog Writer & Content Engine"
+                description="Instantly generate structured, professional, and search-optimized search-intent content using FlamerCoal's advanced AI writing suite."
+                keywords="AI blog writer, SEO content generator, AI article writer, automated blogging tool, SEO copywriter"
+                isTool={true}
             />
 
             <div className="flex-grow max-w-5xl mx-auto w-full px-6 pt-32 pb-24">
-                <Link to="/seo-tools" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#ff4d00] transition-colors mb-8 font-bold text-sm uppercase tracking-widest">
-                    &larr; Back to Tools
-                </Link>
+                <Breadcrumbs 
+                    items={[
+                        { name: 'SEO TOOLS', path: '/seo-tools' },
+                        { name: 'AI BLOG WRITER' }
+                    ]} 
+                />
 
                 <div className="mb-12">
                     <div className="inline-block px-3 py-1 rounded-lg bg-[#ff4d00]/10 border border-[#ff4d00]/20 text-[#ff4d00] text-[10px] font-black uppercase tracking-widest mb-4">
