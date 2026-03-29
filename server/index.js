@@ -935,7 +935,7 @@ app.post('/api/youtube/strategy', async (req, res) => {
         if (!CEREBRAS_API_KEY) throw new Error("Missing CEREBRAS_API_KEY");
 
         const cerebrasResponse = await axios.post('https://api.cerebras.ai/v1/chat/completions', {
-            model: 'llama3.1-70b',
+            model: 'llama3.1-8b',
             messages: [
                 { role: 'system', content: 'You are a YouTube viral strategist. Output ONLY strict JSON.' },
                 { role: 'user', content: prompt }

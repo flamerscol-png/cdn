@@ -5,7 +5,7 @@
  */
 
 const CEREBRAS_API_KEY = import.meta.env.VITE_CEREBRAS_API_KEY;
-const CEREBRAS_MODEL = "llama3.1-70b"; // Extremely fast and capable Llama 3 model
+const CEREBRAS_MODEL = "llama3.1-8b"; // Extremely fast and capable Llama 3 model
 
 /**
  * Calls Cerebras API to generate content.
