@@ -569,14 +569,14 @@ app.get('/api/backlinks', async (req, res) => {
 // ==================== VIEWSTATS SCRAPER ENDPOINT (Real Browser - Cloudflare Bypass) ====================
 // ==================== YOUTUBE STRATEGY ENGINE ====================
 const YOUTUBE_API_KEY = (process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_DATA_API_KEY || process.env.YOUTUBE_DATA_API_KEY || "").trim();
-const CEREBRAS_API_KEY = (process.env.CEREBRAS_API_KEY || process.env.VITE_CEREBRAS_API_KEY || "").trim();
+const GROQ_API_KEY = (process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || "").trim();
 
 console.log("🛠️  Backend API Key Check:");
 console.log(`  - YouTube Key: ${YOUTUBE_API_KEY ? "Present (Starts with: " + YOUTUBE_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
-console.log(`  - Cerebras Key: ${CEREBRAS_API_KEY ? "Present (Starts with: " + CEREBRAS_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
+console.log(`  - Groq Key: ${GROQ_API_KEY ? "Present (Starts with: " + GROQ_API_KEY.substring(0, 5) + "...)" : "MISSING"}`);
 
 if (!YOUTUBE_API_KEY) console.error("⚠️ WARNING: Missing YouTube API Key in server environment!");
-if (!CEREBRAS_API_KEY) console.error("⚠️ WARNING: Missing Cerebras API Key in server environment!");
+if (!GROQ_API_KEY) console.error("⚠️ WARNING: Missing Groq API Key in server environment!");
 // --- KEEP ALIVE ENDPOINT ---
 // Used to prevent Render free tier from sleeping
 app.get('/api/keep-alive', (req, res) => {
@@ -893,7 +893,7 @@ app.post('/api/youtube/strategy', async (req, res) => {
             };
         }
 
-        // 4. Generate Strategy with AI (Cerebras)
+        // 4. Generate Strategy with AI (Groq)
         const prompt = `
             Act as a world-class YouTube Growth & Viral Engineer (like MrBeast's strategist). 
             Analyze the target channel and provide a detailed growth strategy in JSON format.
@@ -932,22 +932,22 @@ app.post('/api/youtube/strategy', async (req, res) => {
             }
         `;
 
-        if (!CEREBRAS_API_KEY) throw new Error("Missing CEREBRAS_API_KEY");
+        if (!GROQ_API_KEY) throw new Error("Missing GROQ_API_KEY");
 
-        const cerebrasResponse = await axios.post('https://api.cerebras.ai/v1/chat/completions', {
-            model: 'llama3.1-8b',
+        const groqResponse = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+            model: 'llama-3.1-8b-instant',
             messages: [
                 { role: 'system', content: 'You are a YouTube viral strategist. Output ONLY strict JSON.' },
                 { role: 'user', content: prompt }
             ],
             response_format: { type: "json_object" },
             temperature: 0.7,
-            max_completion_tokens: 8192
+            max_tokens: 8192
         }, {
-            headers: { 'Authorization': `Bearer ${CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' }
+            headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }
         });
 
-        const strategyRes = cerebrasResponse.data.choices[0].message.content;
+        const strategyRes = groqResponse.data.choices[0].message.content;
         const parsedStrategy = JSON.parse(strategyRes);
 
         res.json({
@@ -970,15 +970,15 @@ app.post('/api/youtube/strategy', async (req, res) => {
             _debug: {
                 ytKeySet: !!YOUTUBE_API_KEY,
                 ytKeyStart: YOUTUBE_API_KEY ? YOUTUBE_API_KEY.substring(0, 5) : "NONE",
-                cerebrasKeySet: !!CEREBRAS_API_KEY,
-                cerebrasKeyStart: CEREBRAS_API_KEY ? CEREBRAS_API_KEY.substring(0, 5) : "NONE"
+                groqKeySet: !!GROQ_API_KEY,
+                groqKeyStart: GROQ_API_KEY ? GROQ_API_KEY.substring(0, 5) : "NONE"
             }
         });
     }
 });
 
-// Note: AI Blog Writer and Thumbnail Ideas have been moved to the frontend 
-// for direct Cerebras API integration to improve speed and reduce server load.
+// Note: AI Blog Writer and Thumbnail Ideas use the backend /api/ai/generate proxy 
+// to avoid CORS issues and keep API keys secure.
 
 
 // ==================== NOWPAYMENTS INTEGRATION ====================
@@ -1247,6 +1247,60 @@ app.post('/api/generate-image', async (req, res) => {
         res.status(error.response?.status || 500).json({ 
             error: 'Image generation failed', 
             details: error.response?.data?.toString() || error.message 
+        });
+    }
+});
+
+// ==================== GENERAL AI PROXY ENDPOINT ====================
+app.post('/api/ai/generate', async (req, res) => {
+    const { systemMsg, userMsg, isJson = true } = req.body;
+
+    if (!GROQ_API_KEY) {
+        return res.status(500).json({ error: 'Groq API Key not configured on server' });
+    }
+
+    try {
+        console.log(`🤖 AI Proxy Request: ${isJson ? 'JSON Mode' : 'Text Mode'}`);
+
+        const payload = {
+            model: 'llama-3.1-8b-instant',
+            messages: [
+                { role: 'system', content: systemMsg },
+                { role: 'user', content: userMsg || "Please respond." }
+            ],
+            temperature: 0.7,
+            max_tokens: 8192
+        };
+
+        if (isJson) {
+            payload.response_format = { type: "json_object" };
+        }
+
+        const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', payload, {
+            headers: {
+                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const content = response.data.choices[0].message.content;
+
+        if (isJson) {
+            try {
+                return res.json(JSON.parse(content));
+            } catch (e) {
+                console.error("JSON Parsing Error from Groq:", content);
+                return res.status(500).json({ error: 'Failed to parse AI response as JSON' });
+            }
+        }
+
+        res.json({ content });
+
+    } catch (error) {
+        console.error('❌ AI Proxy Error:', error.response ? error.response.data : error.message);
+        res.status(error.response?.status || 500).json({ 
+            error: 'AI generation failed', 
+            details: error.response?.data || error.message 
         });
     }
 });
