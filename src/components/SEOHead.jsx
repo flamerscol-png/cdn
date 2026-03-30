@@ -94,7 +94,7 @@ const SEOHead = ({ title, description, keywords, schemaType, customSchema, ogIma
             <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
             <link rel="preconnect" href="https://fonts.googleapis.com" crossOrigin="anonymous" />
             <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-            <link rel="dns-prefetch" href="https://api.cerebras.ai" />
+            <link rel="dns-prefetch" href="https://api.groq.com" />
             <link rel="dns-prefetch" href="https://api.codetabs.com" />
 
             {/* Structured Data (JSON-LD) */}

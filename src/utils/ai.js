@@ -4,8 +4,8 @@
  * (Switched from Groq -> Gemini -> Cerebras)
  */
 
-const CEREBRAS_API_KEY = import.meta.env.VITE_CEREBRAS_API_KEY;
-const CEREBRAS_MODEL = "llama3.1-8b"; // Extremely fast and capable Llama 3 model
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_MODEL = "llama-3.1-8b-instant"; // Fast and capable Llama 3.1 model
 
 /**
  * Calls Cerebras API to generate content.
@@ -18,14 +18,14 @@ export const callGemini = async (systemMsg, userMsg, isJson = true) => {
     // Keep function name as 'callGemini' so we don't need to refactor all 6 tool files again,
     // but under the hood it uses the lightning-fast Cerebras API!
     
-    if (!CEREBRAS_API_KEY) {
-        throw new Error("Missing VITE_CEREBRAS_API_KEY. Please check your .env file.");
+    if (!GROQ_API_KEY) {
+        throw new Error("Missing VITE_GROQ_API_KEY. Please check your .env file.");
     }
 
-    const endpoint = 'https://api.cerebras.ai/v1/chat/completions';
+    const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
     const bodyPayload = {
-        model: CEREBRAS_MODEL,
+        model: GROQ_MODEL,
         messages: [
             { role: 'system', content: systemMsg },
             { role: 'user', content: userMsg || "Please respond." }
@@ -41,7 +41,7 @@ export const callGemini = async (systemMsg, userMsg, isJson = true) => {
     const config = {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${CEREBRAS_API_KEY}`,
+            'Authorization': `Bearer ${GROQ_API_KEY}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(bodyPayload)
@@ -52,7 +52,7 @@ export const callGemini = async (systemMsg, userMsg, isJson = true) => {
         
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error?.message || `Cerebras API Error: ${response.status}`);
+            throw new Error(errorData.error?.message || `Groq API Error: ${response.status}`);
         }
 
         const data = await response.json();
@@ -63,7 +63,7 @@ export const callGemini = async (systemMsg, userMsg, isJson = true) => {
                 // Parse the clean JSON object returned by the model
                 return JSON.parse(content);
             } catch (e) {
-                console.error("JSON Parsing Error from Cerebras:", content);
+                console.error("JSON Parsing Error from Groq:", content);
                 throw new Error("Failed to parse AI response as JSON.");
             }
         }

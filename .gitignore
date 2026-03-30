@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Logs
 logs
 *.log
@@ -24,12 +23,13 @@ dist-ssr
 *.sln
 *.sw?
 
-# Server secrets
-server/.env
-=======
-node_modules
+# Secrets
 .env
+.env.*
+server/.env
 serviceAccountKey.json
-*.html
-*.log
->>>>>>> 3c54b56eca7d351689150346d1e14e6bcb36f6c6
+
+# Temp files
+push_error.txt
+tmp_*.js
+tmp_*.txt
