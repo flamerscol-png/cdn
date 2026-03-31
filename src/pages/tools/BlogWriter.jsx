@@ -21,6 +21,7 @@ const BlogWriter = () => {
     const [loadingMessage, setLoadingMessage] = useState('');
     const [result, setResult] = useState(null);
     const [copied, setCopied] = useState(false);
+    const resultRef = React.useRef(null);
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);
     const TOOL_COST = 40;
@@ -119,6 +120,10 @@ const BlogWriter = () => {
             }
 
             setResult(finalData);
+            // Auto-scroll to result, especially on mobile
+            setTimeout(() => {
+                resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
         } catch (error) {
             console.error('Error:', error);
             setResult({
@@ -228,14 +233,7 @@ const BlogWriter = () => {
                     </div>
 
                     {/* Results Area */}
-                    <div className="lg:col-span-7">
-                        <AdBanner size="leaderboard" className="mb-4" />
-                        {/* Sidebar/Results Ads: Triple 300x250 */}
-                        <div className="flex flex-wrap justify-center gap-4 mb-8">
-                            <AdBanner size="rectangle" />
-                            <AdBanner size="rectangle" />
-                            <AdBanner size="rectangle" />
-                        </div>
+                    <div className="lg:col-span-7" ref={resultRef}>
                         {loading ? (
                             <div className="modrinth-card p-12 h-full flex flex-col items-center justify-center min-h-[400px]">
                                 <div className="w-16 h-16 border-4 border-white/5 border-t-[#ff4d00] rounded-full animate-spin mb-8"></div>
@@ -280,6 +278,15 @@ const BlogWriter = () => {
                                 </p>
                             </div>
                         )}
+                        {/* Ads below result */}
+                        <div className="mt-6">
+                            <AdBanner size="leaderboard" className="mb-4" />
+                            <div className="flex flex-wrap justify-center gap-4">
+                                <AdBanner size="rectangle" />
+                                <AdBanner size="rectangle" />
+                                <AdBanner size="rectangle" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
