@@ -81,28 +81,37 @@ const BlogWriter = () => {
         try {
             await deductPowers(auth.currentUser.uid, TOOL_COST);
 
-            const systemMsg = "Act as a Top-1% SEO Specialist and Subject Matter Expert. Write a 'Power Page' that is designed to outrank the current TOP-3 Google results for the given topic. Output ONLY strict JSON.";
-            const userMsg = `
-                TOPIC: ${topic}
-                KEYWORDS: ${keywords || 'SEO basics, quality content'}
-                TONE: ${tone || 'Professional'}
-                
-                GOAL: Give the user a UNIQUE perspective. Don't just repeat what's on Wikipedia. Add "Expert Secrets," "Common Myths," and "Future Predictions" related to the topic.
-                
-                OUTPUT REQUIREMENTS:
-                1. Title: Catchy, search-optimized, and high-CTR.
-                2. Content: Structure it like a professional long-form guide. Use H2/H3 tags, bold important concepts, and use bullet points for readability. CRITICAL: Use single quotes for all HTML attributes (e.g. <div class='box'>) and do NOT use unescaped newlines or unescaped double quotes inside the content string.
-                3. Engagement: Use 'Bucket Brigades' (short, punchy lines) to keep the reader scrolling.
-                4. Length: Minimum 2000 words of pure utility and value. Do NOT truncate. Write the FULL article.
-                
-                Output ONLY this JSON structure:
-                {
-                    "title": "Powerful Headline Here",
-                    "content": "HTML_STRING_WITH_TAGS_AND_FORMATTING",
-                    "wordCount": 2000,
-                    "seoScore": 98
-                }
-            `;
+            const systemMsg = `You are a world-class SEO content strategist and expert writer with 15+ years of experience. You have studied the top-ranking articles for thousands of competitive keywords and you know exactly what makes content outrank competitors on Google. Your writing style is authoritative, clear, engaging, and human — NOT robotic or keyword-stuffed. You follow Google E-E-A-T guidelines strictly. You NEVER stuff keywords. You always output ONLY strict JSON.`;
+
+            const userMsg = `You are writing a LEGENDARY, competition-crushing blog post. Mentally analyze what the TOP-3 Google results for this topic contain, then write something dramatically better — more detailed, more human, more insightful.
+
+TOPIC: ${topic}
+TARGET KEYWORDS: ${keywords || 'related to the main topic'}
+WRITING TONE: ${tone || 'Professional'}
+
+CONTENT STRUCTURE (follow exactly):
+1. <h2>Hook + What Is [Topic]</h2> — Open with a bold statement or surprising fact. Then give a concrete expert-level definition. State who this is for and what they will learn.
+2. <h2>Why [Topic] Matters Right Now</h2> — Build urgency, use trends/data.
+3. <h2>The Mistakes 90% of People Make with [Topic]</h2> — Address misconceptions readers have.
+4. <h2>[Core How-To Guide: Main Actionable Steps]</h2> with <h3> sub-sections — Step-by-step, genuinely actionable. This is the longest section.
+5. <h2>Expert Secrets: What High Performers Do Differently</h2> — Advanced insider insights.
+6. <h2>Frequently Asked Questions</h2> — Answer 3-4 real FAQs naturally.
+7. <h2>Conclusion</h2> — Summarize key takeaways. End with a motivating call to action.
+
+SEO RULES:
+- Use the primary keyword naturally in H1 equivalent, first 150 words, at least 2 H2s, conclusion
+- Use related semantic keywords throughout — do NOT repeat the exact same phrase more than 3 times
+- ZERO keyword stuffing — write naturally as an expert human
+- Use <strong> for genuinely important terms only
+- Minimum 2000 words total — every section must be substantial (no thin filler)
+
+CRITICAL FORMATTING (DO NOT BREAK JSON):
+- Use ONLY single quotes inside HTML: class='box' NOT class="box"
+- Never use raw double-quotes inside the content string
+- Output content as ONE continuous HTML string
+
+Output ONLY this JSON — nothing else before or after:
+{"title": "Power Headline Here", "content": "FULL_HTML_AS_SINGLE_STRING", "wordCount": 2000, "seoScore": 97}`;
 
             const data = await callGemini(systemMsg, userMsg, true, 'llama-3.3-70b-versatile');
             
