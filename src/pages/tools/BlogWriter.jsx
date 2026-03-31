@@ -94,9 +94,8 @@ CONTENT STRUCTURE (follow exactly):
 2. <h2>Why [Topic] Matters Right Now</h2> — Build urgency, use trends/data.
 3. <h2>The Mistakes 90% of People Make with [Topic]</h2> — Address misconceptions readers have.
 4. <h2>[Core How-To Guide: Main Actionable Steps]</h2> with <h3> sub-sections — Step-by-step, genuinely actionable. This is the longest section.
-5. <h2>Expert Secrets: What High Performers Do Differently</h2> — Advanced insider insights.
-6. <h2>Frequently Asked Questions</h2> — Answer 3-4 real FAQs naturally.
-7. <h2>Conclusion</h2> — Summarize key takeaways. End with a motivating call to action.
+5. <h2>Expert Secrets: What High Performers Do Differently</h2> — Advanced insider insights that 99% of articles miss. Go deep.
+6. <h2>Conclusion</h2> — Summarize key takeaways. End with a motivating call to action. NO FAQ SECTION.
 
 SEO RULES:
 - Use the primary keyword naturally in H1 equivalent, first 150 words, at least 2 H2s, conclusion
