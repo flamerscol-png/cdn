@@ -103,7 +103,7 @@ const BlogWriter = () => {
                 }
             `;
 
-            const data = await callGemini(systemMsg, userMsg, true);
+            const data = await callGemini(systemMsg, userMsg, true, 'llama-3.3-70b-versatile');
             setResult(data);
         } catch (error) {
             console.error('Error:', error);

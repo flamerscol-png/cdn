@@ -1253,17 +1253,17 @@ app.post('/api/generate-image', async (req, res) => {
 
 // ==================== GENERAL AI PROXY ENDPOINT ====================
 app.post('/api/ai/generate', async (req, res) => {
-    const { systemMsg, userMsg, isJson = true } = req.body;
+    const { systemMsg, userMsg, isJson = true, model } = req.body;
 
     if (!GROQ_API_KEY) {
         return res.status(500).json({ error: 'Groq API Key not configured on server' });
     }
 
     try {
-        console.log(`🤖 AI Proxy Request: ${isJson ? 'JSON Mode' : 'Text Mode'}`);
+        console.log(`🤖 AI Proxy Request: ${isJson ? 'JSON Mode' : 'Text Mode'} | Model: ${model || 'llama-3.1-8b-instant'}`);
 
         const payload = {
-            model: 'llama-3.1-8b-instant',
+            model: model || 'llama-3.1-8b-instant',
             messages: [
                 { role: 'system', content: systemMsg },
                 { role: 'user', content: userMsg || "Please respond." }

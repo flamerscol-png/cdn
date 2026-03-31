@@ -12,7 +12,7 @@ import API_BASE_URL from './api';
  * @param {boolean} isJson - Whether to expect and parse a JSON response.
  * @returns {Promise<any>} - The generated string or parsed JSON object.
  */
-export const callGemini = async (systemMsg, userMsg, isJson = true) => {
+export const callGemini = async (systemMsg, userMsg, isJson = true, model = null) => {
     // Keep function name as 'callGemini' for compatibility with existing tools.
     
     const endpoint = `${API_BASE_URL}/api/ai/generate`;
@@ -25,7 +25,8 @@ export const callGemini = async (systemMsg, userMsg, isJson = true) => {
         body: JSON.stringify({
             systemMsg,
             userMsg,
-            isJson
+            isJson,
+            model
         })
     };
 
