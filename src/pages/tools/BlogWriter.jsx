@@ -93,13 +93,13 @@ const BlogWriter = () => {
                 1. Title: Catchy, search-optimized, and high-CTR.
                 2. Content: Structure it like a professional long-form guide. Use H2/H3 tags, bold important concepts, and use bullet points for readability. CRITICAL: Use single quotes for all HTML attributes (e.g. <div class='box'>) and do NOT use unescaped newlines or unescaped double quotes inside the content string.
                 3. Engagement: Use 'Bucket Brigades' (short, punchy lines) to keep the reader scrolling.
-                4. Length: Minimum 1200 words of pure utility and value.
+                4. Length: Minimum 2000 words of pure utility and value. Do NOT truncate. Write the FULL article.
                 
                 Output ONLY this JSON structure:
                 {
                     "title": "Powerful Headline Here",
                     "content": "HTML_STRING_WITH_TAGS_AND_FORMATTING",
-                    "wordCount": 1200,
+                    "wordCount": 2000,
                     "seoScore": 98
                 }
             `;
@@ -265,7 +265,7 @@ const BlogWriter = () => {
                                 </div>
 
                                 <div
-                                    className="prose prose-invert prose-orange max-w-none flex-grow custom-scrollbar overflow-y-auto max-h-[600px] pr-4"
+                                    className="prose prose-invert prose-orange max-w-none prose-headings:text-white prose-p:text-gray-300 prose-li:text-gray-300 prose-strong:text-white prose-h2:text-2xl prose-h3:text-xl"
                                     dangerouslySetInnerHTML={{ __html: result.content }}
                                 />
                             </motion.div>
