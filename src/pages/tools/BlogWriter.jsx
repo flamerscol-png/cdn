@@ -104,7 +104,21 @@ const BlogWriter = () => {
             `;
 
             const data = await callGemini(systemMsg, userMsg, true, 'llama-3.3-70b-versatile');
-            setResult(data);
+            
+            // Gracefully unwrap if AI nested the JSON
+            let finalData = data;
+            if (finalData && !finalData.title && !finalData.content) {
+                const keys = Object.keys(finalData);
+                if (keys.length === 1 && typeof finalData[keys[0]] === 'object') {
+                    finalData = finalData[keys[0]];
+                }
+            }
+            
+            if (!finalData || (!finalData.title && !finalData.content)) {
+                throw new Error("AI returned an empty or unrecognized format: " + JSON.stringify(data).substring(0, 50));
+            }
+
+            setResult(finalData);
         } catch (error) {
             console.error('Error:', error);
             setResult({
