@@ -90,7 +90,7 @@ const BlogWriter = () => {
                 
                 OUTPUT REQUIREMENTS:
                 1. Title: Catchy, search-optimized, and high-CTR.
-                2. Content: Structure it like a professional long-form guide. Use H2/H3 tags, bold important concepts, and use bullet points for readability.
+                2. Content: Structure it like a professional long-form guide. Use H2/H3 tags, bold important concepts, and use bullet points for readability. CRITICAL: Use single quotes for all HTML attributes (e.g. <div class='box'>) and do NOT use unescaped newlines or unescaped double quotes inside the content string.
                 3. Engagement: Use 'Bucket Brigades' (short, punchy lines) to keep the reader scrolling.
                 4. Length: Minimum 1200 words of pure utility and value.
                 
