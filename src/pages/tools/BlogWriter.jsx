@@ -244,7 +244,7 @@ const BlogWriter = () => {
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="modrinth-card p-8 h-full flex flex-col"
+                                className="modrinth-card p-8"
                             >
                                 <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/10">
                                     <div>
