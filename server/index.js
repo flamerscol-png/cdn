@@ -1262,7 +1262,7 @@ app.post('/api/ai/generate', async (req, res) => {
     try {
         console.log(`🤖 AI Proxy Request: ${isJson ? 'JSON Mode' : 'Text Mode'} | Model: ${model || 'llama-3.1-8b-instant'}`);
 
-        const maxTokens = 6000;
+        const maxTokens = 3000;
 
         const payload = {
             model: model || 'llama-3.1-8b-instant',
