@@ -1262,9 +1262,7 @@ app.post('/api/ai/generate', async (req, res) => {
     try {
         console.log(`🤖 AI Proxy Request: ${isJson ? 'JSON Mode' : 'Text Mode'} | Model: ${model || 'llama-3.1-8b-instant'}`);
 
-        // Use larger token limit for bigger models (blog writer), default for small/fast models
-        const isLargeModel = model && model.includes('70b');
-        const maxTokens = isLargeModel ? 32768 : 8192;
+        const maxTokens = 6000;
 
         const payload = {
             model: model || 'llama-3.1-8b-instant',
